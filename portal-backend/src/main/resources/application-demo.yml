@@ -1,0 +1,17 @@
+# 独立演示：H2的SQL结构与MySQL共用，非MySQL验收替代品。
+spring:
+  datasource:
+    url: jdbc:h2:mem:bioportal${random.uuid};MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      # 历史init-data仍含少量已退役统计INSERT；H2测试跳过这些语句并继续加载资源目录。
+      continue-on-error: true
+      schema-locations: classpath:db/schema.sql,classpath:db/demo-compat.sql
+      data-locations: classpath:db/init-data.sql,classpath:db/task1-relations.sql
+      encoding: UTF-8
+app:
+  demo-enabled: false

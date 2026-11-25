@@ -1,0 +1,16 @@
+.tmp/
+.local/
+**/target/
+**/node_modules/
+**/dist/
+.env
+.env.*.local
+.env.*
+!.env.example
+.idea/
+*.log
+
+
+# 可恢复采集作业的本地固定快照缓存（由接口生成）
+docs/gsa-cache/
+docs/bioproject-cache/

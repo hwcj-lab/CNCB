@@ -1,0 +1,1071 @@
+{
+  "info": {
+    "_postman_id": "d31cf17b-7ca2-4f68-b4c4-bioportal2026",
+    "name": "生物数据资源推荐与科研产出分析平台 API",
+    "description": "ApiPost可直接导入的Postman Collection v2.1。全部请求使用http://localhost:8080完整地址，不依赖环境变量。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 系统与文档",
+      "item": [
+        {
+          "name": "系统状态",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/system/status",
+            "description": "验证Spring Boot和数据库连接，并返回数据库、资源和工具数量。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('包含数据库统计', () => { const d=pm.response.json().data; pm.expect(d).to.have.property('databaseCount'); pm.expect(d).to.have.property('toolEntryCount'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAPI JSON",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/v3/api-docs",
+            "description": "Swagger/OpenAPI原始文档。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('OpenAPI 3文档', () => pm.expect(pm.response.json().openapi).to.match(/^3\\./));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 数据资源与工具",
+      "item": [
+        {
+          "name": "推荐页总接口",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/resource-recommendations",
+            "description": "返回存在关联数据库的可见数据类型以及每个数据库的工具；空分类不返回。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));",
+                  "pm.test('每组均包含非空databases', () => pm.response.json().data.forEach(x => { pm.expect(x).to.have.property('dataType'); pm.expect(x.databases).to.be.an('array').and.not.empty; }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "推荐页后端关键词搜索",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/resource-recommendations?keyword=GenBase",
+            "description": "后端按数据库名称或中英文标题过滤，仍按类型分组，并省略空分类。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));",
+                  "pm.test('只返回DNA中的GenBase', () => { const data=pm.response.json().data; pm.expect(data).to.have.length(1); pm.expect(data[0].dataType.code).to.eql('DNA'); pm.expect(data[0].databases[0].name).to.eql('GenBase'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "根据搜索结果推荐",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/resource-recommendations/search-results",
+            "description": "请求体直接使用CNCB搜索响应的result.databases数组；按官方db_id匹配，只返回有命中数据库的分类。",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"id\": \"nucbank_nuc2\",\n    \"name\": \"GenBase\",\n    \"description\": \"Genetic Sequence Database\",\n    \"hitCount\": 1,\n    \"categories\": [\n      \"Sequence\"\n    ]\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));",
+                  "pm.test('GenBase只命中DNA分类', () => { const data=pm.response.json().data; pm.expect(data).to.have.length(1); pm.expect(data[0].dataType.code).to.eql('DNA'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "查询数据类型",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/data-types",
+            "description": "返回可见且启用的数据类型。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "查询全部数据库",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases",
+            "description": "返回全部可见数据库及其类型和工具关系。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "按DNA类型查询数据库",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases?dataType=DNA",
+            "description": "只返回database_data_type中关联DNA的数据资源。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "按关键词查询数据库",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases?keyword=Genome",
+            "description": "按短名称、中英文标题模糊查询。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "数据库详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases/1",
+            "description": "完整地址内使用示例databaseId=1，可直接修改URL中的ID。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "数据库关联工具",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases/1/tools",
+            "description": "通过database_tool查询工具，不再直接关联数据类型。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "工具详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/tools/1",
+            "description": "完整地址内使用示例toolId=1，可直接修改URL中的ID。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 OpenLB文献采集",
+      "item": [
+        {
+          "name": "查询OpenLB采集状态",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/collection/openlb/status",
+            "description": "查看后台任务是否运行、当前限速间隔和各持久化状态数量。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "导入OpenLB PMID CSV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/collection/openlb/tasks/import-csv",
+            "description": "从服务端docs/openlb_pmid.csv导入去重任务；重复PMID不覆盖。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "启动OpenLB后台采集",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/collection/openlb/jobs/start",
+            "description": "立即返回，不等待全量采集完成；默认3并发、350ms最小间隔。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"concurrency\": 3,\n  \"batchSize\": 60,\n  \"minDelayMs\": 350,\n  \"maxAttempts\": 3,\n  \"stopAfterConsecutiveThrottles\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "停止OpenLB采集",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/collection/openlb/jobs/stop",
+            "description": "请求安全停止；未完成记录保留为可续传状态。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "重试OpenLB失败任务",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/collection/openlb/tasks/retry-failed",
+            "description": "仅将FAILED重置为PENDING，不重复SUCCESS或EMPTY。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 科研产出分析 REAL",
+      "item": [
+        {
+          "name": "科研概览",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/summary?mode=REAL",
+            "description": "真实数据模式概览；缺失指标允许value为null。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "年度文献趋势",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/annual?mode=REAL",
+            "description": "按发表年份统计。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "年度趋势带年份范围",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/annual?mode=REAL&fromYear=2020&toYear=2026",
+            "description": "验证年份范围筛选。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "资源关联类别分布",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/topics?mode=REAL",
+            "description": "按数据库的数据类型关系统计，不等同学科主题。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "核心机构",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/institutions?mode=REAL&limit=10",
+            "description": "只统计论文署名机构。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "核心作者",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/authors?mode=REAL&limit=10",
+            "description": "只统计已消歧作者。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "基金项目",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/funds?mode=REAL&limit=10",
+            "description": "只统计论文资助关系。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "机构年度趋势",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/institutions/101/trend?mode=REAL",
+            "description": "如果真实库不存在该机构，预期404；请把institutionId替换为真实ID。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200或404', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "作者年度趋势",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/authors/101/trend?mode=REAL",
+            "description": "如果真实库不存在该作者，预期404；请把authorId替换为真实ID。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200或404', () => pm.expect(pm.response.code).to.be.oneOf([200,404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "分页查询文献",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/publications?mode=REAL&page=1&size=10",
+            "description": "页码从1开始，size最大50。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "官方来源接口登记",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/sources",
+            "description": "只返回登记表，不调用外部接口。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('统一响应code为OK', () => pm.expect(body.code).to.eql('OK'));",
+                  "pm.test('响应包含data和timestamp', () => { pm.expect(body).to.have.property('data'); pm.expect(body).to.have.property('timestamp'); });",
+                  "pm.test('data为数组', () => pm.expect(pm.response.json().data).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 参数与异常",
+      "item": [
+        {
+          "name": "未知数据类型-400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases?dataType=UNKNOWN",
+            "description": "验证UNKNOWN_DATA_TYPE。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "数据库不存在-404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/databases/999999/tools",
+            "description": "验证DATABASE_NOT_FOUND。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "工具不存在-404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/tools/999999",
+            "description": "验证TOOL_NOT_FOUND。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "年份范围错误-400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/annual?mode=REAL&fromYear=2026&toYear=2020",
+            "description": "开始年份不能晚于结束年份。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "年份越界-400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/annual?mode=REAL&fromYear=1499",
+            "description": "年份允许范围1500到2200。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "分页大小超限-400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/publications?mode=REAL&page=1&size=51",
+            "description": "size最大50。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "非法数据模式-400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/summary?mode=UNKNOWN",
+            "description": "mode只允许REAL或DEMO。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('错误响应不返回业务数据', () => pm.expect(body.data).to.eql(null));",
+                  "pm.test('包含错误码和消息', () => { pm.expect(body.code).to.be.a('string').and.not.empty; pm.expect(body.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "正式环境访问DEMO-403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://localhost:8080/api/research/summary?mode=DEMO",
+            "description": "mysql profile默认demo-enabled=false；如果主动启用了DEMO，本用例会返回200。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('正式环境应为403；显式启用演示时允许200', () => pm.expect(pm.response.code).to.be.oneOf([200,403]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

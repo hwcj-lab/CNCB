@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bioplatform.research.collection.genbase.mapper.GenBaseCollectionMapper">
+    <!-- 应用异常退出时RUNNING无法自动收尾，启动前统一恢复为可续传状态。 -->
+    <update id="recoverInterruptedJobs">
+        UPDATE genbase_collection_job
+        SET status='STOPPED',last_error=#{reason},completed_time=NOW(),update_time=NOW()
+        WHERE status='RUNNING'
+    </update>
+
+    <!-- 只恢复最近未完成作业；SUCCESS作业再次启动时应创建新的全量扫描。 -->
+    <select id="findResumableJob" resultType="com.example.bioplatform.research.collection.genbase.vo.GenBaseJobState">
+        SELECT id job_id,status job_status,next_start,page_size,records_total,rows_seen,rows_inserted,
+               attempt_count,last_error,started_time,completed_time
+        FROM genbase_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
+    </select>
+
+    <insert id="createJob">
+        INSERT INTO genbase_collection_job(status,next_start,page_size,started_time,create_time,update_time)
+        VALUES('RUNNING',0,#{pageSize},NOW(),NOW(),NOW())
+    </insert>
+
+    <select id="lastInsertId" resultType="java.lang.Long">SELECT LAST_INSERT_ID()</select>
+
+    <update id="resumeJob">
+        UPDATE genbase_collection_job
+        SET status='RUNNING',page_size=#{pageSize},attempt_count=0,last_error=NULL,
+            started_time=COALESCE(started_time,NOW()),completed_time=NULL,update_time=NOW()
+        WHERE id=#{jobId} AND status IN ('STOPPED','FAILED')
+    </update>
+
+    <select id="findLatestJob" resultType="com.example.bioplatform.research.collection.genbase.vo.GenBaseJobState">
+        SELECT id job_id,status job_status,next_start,page_size,records_total,rows_seen,rows_inserted,
+               attempt_count,last_error,started_time,completed_time
+        FROM genbase_collection_job ORDER BY id DESC LIMIT 1
+    </select>
+
+    <!-- 数据库内批量UPSERT；未变化记录不覆盖，变化记录更新并重新标记待关联。 -->
+    <insert id="insertPublicationsIgnore">
+        INSERT INTO genbase_publication(
+          paper_id,pmid,doi,bioproject_accession,journal_name,paper_title,publish_year,
+          genbase_accessions,source_url,raw_payload,openlb_status,source_hash,fetched_at,create_time,update_time
+        ) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.paperId},#{row.pmid},#{row.doi},#{row.bioprojectAccession},#{row.journalName},
+           #{row.paperTitle},#{row.publishYear},#{row.genbaseAccessions},#{row.sourceUrl},CAST(#{row.rawPayload} AS JSON),
+           'PENDING',#{row.sourceHash},NOW(),NOW(),NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+          is_primary=1,paper_id=COALESCE(paper_id,VALUES(paper_id)),
+          openlb_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),
+                           'PENDING',openlb_status),
+          openlb_attempt_count=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),0,openlb_attempt_count),
+          openlb_last_error=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),NULL,openlb_last_error),
+          openlb_last_attempt_time=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),NULL,openlb_last_attempt_time),
+          openlb_completed_time=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),NULL,openlb_completed_time),
+          relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+          pmid=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),COALESCE(VALUES(pmid),pmid),pmid),
+          doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),COALESCE(VALUES(doi),doi),doi),
+          bioproject_accession=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(bioproject_accession),bioproject_accession),
+          journal_name=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_name),journal_name),
+          paper_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(paper_title),paper_title),
+          publish_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(publish_year),publish_year),
+          genbase_accessions=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(genbase_accessions),genbase_accessions),
+          raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
+          source_hash=VALUES(source_hash)
+    </insert>
+
+    <!-- 文献与断点在同一事务提交，避免“已入库但重复请求当前页”的窗口。 -->
+    <update id="advanceJob">
+        UPDATE genbase_collection_job
+        SET next_start=#{nextStart},records_total=#{recordsTotal},rows_seen=rows_seen+#{seen},
+            rows_inserted=rows_inserted+#{inserted},attempt_count=0,last_error=NULL,update_time=NOW()
+        WHERE id=#{jobId} AND status='RUNNING'
+    </update>
+
+    <update id="recordFailure">
+        UPDATE genbase_collection_job
+        SET attempt_count=attempt_count+1,last_error=#{error},update_time=NOW()
+        WHERE id=#{jobId}
+    </update>
+
+    <update id="finishJob">
+        UPDATE genbase_collection_job
+        SET status=#{status},last_error=#{error},completed_time=NOW(),update_time=NOW()
+        WHERE id=#{jobId}
+    </update>
+
+    <!-- 应用中断时补全任务没有提交结果，恢复为PENDING等待重试。 -->
+    <update id="recoverRunningEnrichment">
+        UPDATE genbase_publication
+        SET openlb_status='PENDING',openlb_last_error=#{reason},update_time=NOW()
+        WHERE openlb_status='RUNNING'
+    </update>
+
+    <!-- 不删除或重建来源行；显式重置GenBase主列表文献，包含旧NO_PMID，供下一次作业补全。 -->
+    <update id="resetPmidEnrichment">
+        UPDATE genbase_publication
+        SET openlb_status='PENDING',openlb_attempt_count=0,openlb_last_error=NULL,
+            openlb_last_attempt_time=NULL,openlb_completed_time=NULL,update_time=NOW()
+        WHERE paper_id IS NOT NULL AND is_primary=1
+    </update>
+
+    <select id="findPendingEnrichment" resultType="com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask">
+        SELECT id,paper_id,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,bioproject_accession,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,grants_json,cncb_banks_json FROM genbase_publication
+        WHERE openlb_status='PENDING' AND paper_id IS NOT NULL AND is_primary=1
+        ORDER BY id LIMIT #{limit}
+    </select>
+
+    <update id="markEnrichmentRunning">
+        UPDATE genbase_publication
+        SET openlb_status='RUNNING',openlb_last_attempt_time=NOW(),update_time=NOW()
+        WHERE openlb_status='PENDING' AND paper_id IN
+        <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <select id="lockEnrichment" resultType="com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask">
+        SELECT id,paper_id,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,bioproject_accession,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,grants_json,cncb_banks_json FROM genbase_publication WHERE paper_id IN
+        <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach> ORDER BY id FOR UPDATE
+    </select>
+    <!-- 每个字段通过paperId CASE映射，一条SQL回填整批，不逐文献UPDATE。 -->
+    <update id="updateEnrichmentSuccess">
+        UPDATE genbase_publication SET
+        relation_status=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN CASE WHEN NOT(authors_json&lt;=&gt;#{r.authorsJson}) OR NOT(affiliation_info&lt;=&gt;#{r.affiliationInfo}) OR NOT(grants_json&lt;=&gt;#{r.grantsJson}) OR NOT(cncb_banks_json&lt;=&gt;#{r.cncbBanksJson}) OR NOT(keyword_list&lt;=&gt;#{r.keywordList}) OR NOT(mesh_headings_json&lt;=&gt;#{r.meshHeadingsJson}) THEN 'PENDING' ELSE relation_status END</foreach> ELSE relation_status END,
+        abstract_text=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.abstractText}</foreach> ELSE abstract_text END,
+        affiliation_info=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.affiliationInfo}</foreach> ELSE affiliation_info END,
+        keyword_list=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.keywordList}</foreach> ELSE keyword_list END,
+        authors_json=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.authorsJson}</foreach> ELSE authors_json END,
+        mesh_headings_json=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.meshHeadingsJson}</foreach> ELSE mesh_headings_json END,
+        grants_json=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.grantsJson}</foreach> ELSE grants_json END,
+        cncb_banks_json=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.cncbBanksJson}</foreach> ELSE cncb_banks_json END,
+        openlb_raw_payload=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.rawPayload}</foreach> ELSE openlb_raw_payload END,
+        openlb_status=CASE paper_id <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.status}</foreach> ELSE openlb_status END,openlb_attempt_count=openlb_attempt_count+1,openlb_last_error=NULL,
+        openlb_completed_time=NOW(),update_time=NOW()
+        WHERE paper_id IN <foreach collection="rows" item="r" open="(" separator="," close=")">#{r.paperId}</foreach>
+    </update>
+
+    <update id="markEnrichmentEmpty">
+        UPDATE genbase_publication
+        SET openlb_status='EMPTY',openlb_attempt_count=openlb_attempt_count+1,openlb_last_error=NULL,
+            openlb_completed_time=NOW(),update_time=NOW()
+        WHERE paper_id IN <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markEnrichmentFailedOrPending">
+        UPDATE genbase_publication SET
+        openlb_status=CASE WHEN openlb_attempt_count+1&gt;=#{maxAttempts} THEN 'FAILED' ELSE 'PENDING' END,
+        openlb_attempt_count=openlb_attempt_count+1,
+        openlb_last_error=CASE paper_id
+          <foreach collection="rows" item="r">WHEN #{r.paperId} THEN #{r.error}</foreach>
+          ELSE openlb_last_error END,
+        update_time=NOW()
+        WHERE paper_id IN <foreach collection="rows" item="r" open="(" separator="," close=")">#{r.paperId}</foreach>
+    </update>
+</mapper>
+

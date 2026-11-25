@@ -1,0 +1,343 @@
+{
+  "info": {
+    "name": "任务二 · GSA与BioProject新增及关联接口 · 2026-11-24",
+    "description": "按当前后端Controller整理的Postman Collection v2.1，可导入ApiPost/Postman。所有请求为http://127.0.0.1:8080完整地址，不依赖环境变量。示例ID=1、PMID=41028458须手动换成真实值。\n调用顺序：建表路由→PMID导入/来源盘点→OpenLB分流或GenBase/GSA/BioProject独立主采集→公共关联任务→必要时本地重建整合表→生成快照→轮询状态→总统计/分库统计→文献穿透。\n启动、停止、重置、删除均为真实操作，请按需要逐个调用，不要将整个集合批量执行。后台启动HTTP成功不等于作业完成，需查询对应status。不存在的旧/api/research接口与replay-pending不包含在本文件。\n每个数据库的其他独立官网主采集接口（GVM/OMIX/BioSample/GEN/EWAS等）当前尚未实现；只有建表与路由不会自动从这些官网采集。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 GSA独立采集",
+      "description": "全部支持文章统一归入GSA。",
+      "item": [
+        {
+          "name": "01 开始 / 断点继续GSA主采集",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/gsa/jobs/start",
+            "description": "【GSA专用·访问上游】读取statistics/statistics.json中的article.publications全部支持文章（含HRA/OMIX），统一归入GSA。固定JSON快照缓存到服务器磁盘，流式分批入库，IMPORT游标及ENRICH状态持久化。优先PMID用OpenLB补全，缺失时回退PubMed；无PMID有DOI时尝试匹配PMID，不猜测多匹配结果。保留逐作者机构及原始基金；完成后关联文献另启公共接口。batchSize=1..200，minDelayMs=350..10000，maxAttempts=1..5。先执行GSA专用建表升级SQL。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batchSize\": 100,\n  \"minDelayMs\": 800,\n  \"maxAttempts\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "02 查询GSA阶段及补全状态",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/gsa/status",
+            "description": "【GSA专用·本地只读】running、message、currentRecord、currentDelayMs、job.phase/status/nextIndex、enrichmentCounts。SUCCESS表示主采集流程结束，NO_PMID/EMPTY表示未获得完整元数据，不代表数据丢弃；关联采集状态另查公共关联jobs/status。"
+          }
+        },
+        {
+          "name": "03 安全停止GSA采集",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/gsa/jobs/stop",
+            "description": "【GSA专用】下载/导入/补全阶段请求停止；已提交批次不回滚。再次jobs/start续做。"
+          }
+        },
+        {
+          "name": "04 新建GSA全量列表扫描",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/gsa/jobs/restart",
+            "description": "【GSA专用·访问上游】显式放弃旧扫描游标，下载新的统计JSON；不删除任何文献，不重置成功补全标记。列表未变的记录不重复补全。用于缓存文件丢失或需要重新扫描；正常中断使用jobs/start。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batchSize\": 100,\n  \"minDelayMs\": 800,\n  \"maxAttempts\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "05 重置GSA元数据补全",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/gsa/enrichment/reset",
+            "description": "【GSA专用·本地写入】将GSA主文献补全状态重置为PENDING，保留作者基金原始数据。随后jobs/start。不会重置OpenLB CSV任务，也不会自动启动关联发现。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 BioProject独立采集",
+      "description": "每项目全部出版信息。",
+      "item": [
+        {
+          "name": "01 BioProject全列表采集 / 断点继续",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/bioproject/jobs/start",
+            "description": "【BioProject专用·访问上游】官方NGDC项目列表磁盘快照→每项目全部出版信息→PMID优先OpenLB、空结果回退PubMed→本地表UPSERT→全局表增量同步。projectAccessions不传/空数组扫描官方NGDC列表；传数组只处理指定项目。STOPPED/FAILED恢复原作业，请勿同时更换项目范围；SUCCESS后start新建扫描。提交单位保留在原始载荷中，绝不直接当成作者署名。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batchSize\": 100,\n  \"minDelayMs\": 800,\n  \"maxAttempts\": 3,\n  \"projectAccessions\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "02 BioProject重新扫描（保留文献）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/bioproject/jobs/restart",
+            "description": "【BioProject专用·访问上游】放弃旧作业游标、新建固定列表。示例只处理一个项目用于小批验证。保留旧文献、关系及OpenLB任务；同篇按PMID/DOI/稳定来源键更新。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batchSize\": 20,\n  \"minDelayMs\": 800,\n  \"maxAttempts\": 3,\n  \"projectAccessions\": [\n    \"PRJCA039050\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "03 BioProject安全停止",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/bioproject/jobs/stop",
+            "description": "【BioProject专用】等待当前请求/批次收尾后停止，已提交游标保留；jobs/start断点继续。"
+          }
+        },
+        {
+          "name": "04 BioProject状态及断点",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/bioproject/status",
+            "description": "【BioProject专用·本地只读】running、phase、nextIndex、currentRecord、enrichmentCounts；nextIndex是已提交的项目数，rowsImported是出版信息导入次数。"
+          }
+        },
+        {
+          "name": "05 BioProject重置元数据补全",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/bioproject/enrichment/reset",
+            "description": "【BioProject专用·本地写入】只将主文献元数据状态设为PENDING，不删论文/关系。之后jobs/start执行；不改OpenLB导入任务。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 共用关联发现与查询",
+      "description": "主采集后按需另行启动；databaseCode可填GSA或BIOPROJECT。",
+      "item": [
+        {
+          "name": "01 从指定库领取待关联文献（无需手填PMID）",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/jobs/start-pending-batch",
+            "description": "【公共关联流程·适用于已注册真实来源】databaseCode填路由的source_code（如GSA/GWH/BIOCODE/DATABASECOMMONS/BIOPROJECT/ASCANCERATLAS/GENBASE等），不是cncbBanks.db显示名。OpenLB已不作为统计来源，不使用OPENLB启动新库任务。新增路由不自动实现资源解析器；已接入BioCode、Database Commons、BioProject、GSA、GWH、ASCancerAtlas（ASC接口当前实测404，失败会记录，不当作空结果）。其他库可走已有页面回退，但不保证动态页面可解析。\n【访问上游】从指定来源表领取PENDING，includeFailed=true同时领取FAILED。batchSize=1..5000；maxPublications=1..100000为本次处理节点上限，达到后PAUSED；requestDelayMs=100..60000。每次作业选择一个来源库。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"databaseCode\": \"GSA\",\n  \"batchSize\": 100,\n  \"includeFailed\": false,\n  \"maxPublications\": 1000,\n  \"requestDelayMs\": 800\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "02 单篇刷新 / 重新发现关联文献",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/jobs/start",
+            "description": "【公共关联流程·适用于已注册真实来源】databaseCode填路由的source_code（如GSA/GWH/BIOCODE/DATABASECOMMONS/BIOPROJECT/ASCANCERATLAS/GENBASE等），不是cncbBanks.db显示名。OpenLB已不作为统计来源，不使用OPENLB启动新库任务。新增路由不自动实现资源解析器；已接入BioCode、Database Commons、BioProject、GSA、GWH、ASCancerAtlas（ASC接口当前实测404，失败会记录，不当作空结果）。其他库可走已有页面回退，但不保证动态页面可解析。\n【访问上游】identifiers是该库已有文献的唯一值。通用同结构库使用pmid；GENBASE可用paperId、pmid或doi；GSA/BIOPROJECT可用pmid、doi或sourceKey。refreshPublication控制是否重新拉文章正文；refreshRelations控制是否重新发现关联边。两者均true用于单篇全部刷新，false/true只重查关联。请将示例PMID替换为目标库真实存在值。",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"databaseCode\": \"GSA\",\n  \"identifiers\": {\n    \"pmid\": \"41028458\"\n  },\n  \"refreshPublication\": false,\n  \"refreshRelations\": true,\n  \"maxPublications\": 1000,\n  \"requestDelayMs\": 800\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "03 查询公共关联作业状态",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/jobs/status?jobId=1",
+            "description": "【公共关联·只读本地】jobId替换为启动返回的真实作业ID；不传jobId时查询当前/最近作业。状态包括pendingCount、processedCount、discoveredCount、relationCount、lastError。该status仅共用于关联采集，不是所有任务的统一状态。"
+          }
+        },
+        {
+          "name": "04 停止当前公共关联作业",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/jobs/stop",
+            "description": "【公共关联】安全停止当前关联作业，不停止OpenLB主采集、GenBase主采集、来源盘点或快照任务。"
+          }
+        },
+        {
+          "name": "05 断点恢复指定公共关联作业",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/jobs/1/resume",
+            "description": "【公共关联·访问上游】将路径1替换为真实jobId；恢复PAUSED/STOPPED/FAILED任务并处理队列未完成项。重试来源表中的失败文献也可使用start-pending-batch并传includeFailed=true。"
+          }
+        },
+        {
+          "name": "06 分页查询某文献的双向关联文献",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/publications/GSA/PMID/41028458?page=1&size=20",
+            "description": "【公共查询·只读本地】GSA替换为实际source_code；PMID替换为identifierType（PMID/PAPER_ID/DOI/SOURCE_KEY），后段填实际唯一值。DOI包含斜杠时优先用同组查询参数接口，避免服务器路径编码限制。page从1开始；size=1..100。返回title、pmid、doi、identifierValue等；页面据PMID或DOI生成外部论文跳转。"
+          }
+        },
+        {
+          "name": "07 关联文献查询（查询参数形式，支持DOI斜杠）",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "http://127.0.0.1:8080/api/collection/publication-relations/publications?databaseCode=GSA&identifierType=DOI&identifier=10.1234%2Fabc&page=1&size=20",
+            "description": "【公共关联·本地只读】与路径查询同一功能；DOI包含斜杠时优先用这个接口。GSA没有PMID/DOI时可传identifierType=SOURCE_KEY、identifier=该论文的完整稳定source_record_key（如TITLE:...）。请替换示例唯一值。"
+          }
+        }
+      ]
+    }
+  ]
+}

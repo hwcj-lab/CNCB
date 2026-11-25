@@ -1,0 +1,38 @@
+server:
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: bio-portal
+  profiles:
+    default: mysql
+  jackson:
+    time-zone: Asia/Shanghai
+mybatis-plus:
+  mapper-locations: classpath:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+app:
+  demo-enabled: false
+  cors-origins: ${CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  openlb:
+    csv-path: ${OPENLB_CSV_PATH:docs/openlb_pmid.csv}
+    endpoint: https://ngdc.cncb.ac.cn/openlb/api/pmid?pmid=
+  genbase:
+    endpoint: https://ngdc.cncb.ac.cn/genbase/statistics/getSupportPaperList
+
+  ascancer:
+    # 官方前端knowledge接口；当前检查返回404，关联作业会失败并保留断点。
+    knowledge-endpoint: https://ngdc.cncb.ac.cn/ascancer/api/browse/knowledge
+
+  gsa:
+    statistics-endpoint: https://ngdc.cncb.ac.cn/gsa/statistics/statistics.json
+    cache-directory: F:/project/bio-portal-suite/docs/gsa-cache
+
+  bioproject:
+    statistics-endpoint: https://ngdc.cncb.ac.cn/bioproject/json/ngdcBrowse.json
+    cache-directory: F:/project/bio-portal-suite/docs/bioproject-cache

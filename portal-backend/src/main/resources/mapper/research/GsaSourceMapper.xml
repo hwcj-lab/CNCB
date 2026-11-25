@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bioplatform.research.collection.gsa.mapper.GsaSourceMapper">
+    <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END) source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary primary_flag FROM gsa_publication WHERE id&gt;#{after} AND (is_primary=1 OR #{related}=TRUE) ORDER BY id LIMIT #{size}
+    </select>
+    <select id="count" resultType="long">
+SELECT COUNT(*) FROM gsa_publication WHERE is_primary=1 OR #{related}=TRUE
+    </select>
+    <select id="years" resultType="java.lang.Integer">
+SELECT DISTINCT pub_year FROM gsa_publication WHERE pub_year IS NOT NULL AND (is_primary=1 OR #{related}=TRUE)
+    </select>
+    <select id="identifiers" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END) source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary primary_flag FROM gsa_publication WHERE 1=0 <if test='pmids.size()>0'> OR pmid IN <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach></if><if test='dois.size()>0'> OR doi IN <foreach collection='dois' item='v' open='(' close=')' separator=','>#{v}</foreach></if>
+    </select>
+    <select id="keys" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END) source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary primary_flag FROM gsa_publication WHERE gsa_record_key IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}</foreach> OR CONCAT('PMID:',pmid) IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}</foreach> OR CONCAT('DOI:',doi) IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}</foreach> OR CONCAT('LOCAL_ID:',id) IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}</foreach>
+    </select>
+</mapper>

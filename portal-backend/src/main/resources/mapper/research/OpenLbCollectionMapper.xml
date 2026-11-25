@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bioplatform.research.collection.openlb.mapper.OpenLbCollectionMapper">
+    <!-- CSV导入：使用PMID唯一索引去重，绝不覆盖已有任务状态。 -->
+    <insert id="insertTasksIgnore">
+        INSERT IGNORE INTO openlb_pmid_task(pmid,status,attempt_count,create_time,update_time) VALUES
+        <foreach collection="pmids" item="pmid" separator=",">
+            (#{pmid},'PENDING',0,NOW(),NOW())
+        </foreach>
+    </insert>
+
+    <!-- 人工确认上游恢复后才调用；SUCCESS/EMPTY不参与重置。 -->
+    <update id="retryFailed">
+        UPDATE openlb_pmid_task
+        SET status='PENDING',attempt_count=0,last_error=NULL,next_retry_time=NULL,update_time=NOW()
+        WHERE status='FAILED'
+    </update>
+
+    <!-- 状态页只返回聚合数量，不加载全量PMID到内存。 -->
+    <select id="countByStatus" resultType="com.example.bioplatform.research.collection.common.vo.TaskStatusCount">
+        SELECT status,COUNT(*) total FROM openlb_pmid_task GROUP BY status ORDER BY status
+    </select>
+
+    <!-- 修复极端中断窗口：如文献已入库，则任务直接视为SUCCESS，不再请求上游。 -->
+    <update id="reconcileCompletedTasks">
+        UPDATE openlb_pmid_task t
+        SET status='SUCCESS',completed_time=COALESCE(completed_time,NOW()),last_error=NULL,update_time=NOW()
+        WHERE EXISTS (SELECT 1 FROM openlb_publication p WHERE p.pmid=t.pmid)
+    </update>
+
+    <!-- 应用重启或安全停止时，将没有最终结果的RUNNING恢复为PENDING。 -->
+    <update id="recoverRunningTasks">
+        UPDATE openlb_pmid_task
+        SET status='PENDING',last_error=#{reason},update_time=NOW()
+        WHERE status='RUNNING'
+    </update>
+
+    <!-- 利用(status,next_retry_time,id)索引只取当前批次，避免全表扫描和全量加载。 -->
+    <select id="findPendingPmids" resultType="java.lang.String">
+        SELECT pmid FROM openlb_pmid_task
+        WHERE status='PENDING' AND (next_retry_time IS NULL OR next_retry_time&lt;=NOW())
+        ORDER BY id LIMIT #{limit}
+    </select>
+
+    <!-- 一条UPDATE领取整批PMID，不逐条提交。 -->
+    <update id="markRunning">
+        UPDATE openlb_pmid_task
+        SET status='RUNNING',last_attempt_time=NOW(),update_time=NOW()
+        WHERE status='PENDING' AND pmid IN
+        <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
+    </update>
+
+    <!-- 一条多行UPSERT写入当前批次；内容未变时不覆盖，变化时更新并重新标记待关联。 -->
+    <insert id="insertPublicationsIgnore">
+        INSERT INTO openlb_publication(pmid,doi,title,abstract_text,pub_year,journal_title,source_url,
+          authors_json,affiliation_info,keyword_list,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,source_hash,fetched_at) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.pmid},#{row.doi},#{row.title},#{row.abstractText},#{row.pubYear},#{row.journalTitle},#{row.sourceUrl},
+           #{row.authorsJson},#{row.affiliationInfo},#{row.keywordList},#{row.meshHeadingsJson},#{row.grantsJson},
+           #{row.cncbBanksJson},#{row.rawPayload},#{row.sourceHash},NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+          is_primary=1,
+          relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+          doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(doi),doi),
+          pub_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(pub_year),pub_year),
+          journal_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_title),journal_title),
+          title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(title),title),
+          abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
+          source_url=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(source_url),source_url),
+          affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
+          keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
+          authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
+          mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+          grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
+          cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+          raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
+          source_hash=VALUES(source_hash)
+    </insert>
+
+    <!-- 文献批量写入成功后，在同一事务中集合更新任务状态。 -->
+    <update id="markSuccess">
+        UPDATE openlb_pmid_task
+        SET status='SUCCESS',attempt_count=attempt_count+1,last_error=NULL,next_retry_time=NULL,completed_time=NOW(),update_time=NOW()
+        WHERE pmid IN <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
+    </update>
+
+    <!-- cncbBanks为空是有效终态，不应当作网络失败反复重试。 -->
+    <update id="markEmpty">
+        UPDATE openlb_pmid_task
+        SET status='EMPTY',attempt_count=attempt_count+1,last_error=NULL,next_retry_time=NULL,completed_time=NOW(),update_time=NOW()
+        WHERE pmid IN <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
+    </update>
+
+    <!-- CASE WHEN为同一批次的不同PMID写入不同错误，同时计算延迟重试或最终FAILED。 -->
+    <update id="markFailedOrPending">
+        UPDATE openlb_pmid_task
+        SET attempt_count=attempt_count+1,
+            status=IF(attempt_count&gt;=#{maxAttempts},'FAILED','PENDING'),
+            last_error=CASE pmid
+                <foreach collection="rows" item="row">WHEN #{row.pmid} THEN #{row.error}</foreach>
+                ELSE last_error END,
+            next_retry_time=DATE_ADD(NOW(),INTERVAL LEAST(300,5*attempt_count*attempt_count) SECOND),
+            update_time=NOW()
+        WHERE pmid IN <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.pmid}</foreach>
+    </update>
+</mapper>

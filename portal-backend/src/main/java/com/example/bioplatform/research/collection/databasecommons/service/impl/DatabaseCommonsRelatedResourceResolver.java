@@ -1,0 +1,78 @@
+package com.example.bioplatform.research.collection.databasecommons.service.impl;
+import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
+import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+
+/** Database Commons引用资源解析器；仅取目标dbId条目中明确列出的PMID。 */
+@Component
+@RequiredArgsConstructor
+public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceResolver {
+    private final ObjectMapper json;
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+
+    @Override public List<String> supportedDatabaseNames() { return List.of("Database Commons", "DatabaseCommons"); }
+
+    @Override
+    public RelatedResourceData findRelatedPublications(String accession, String officialUrl) throws Exception {
+        String id = accession == null ? "" : accession.trim().replaceFirst("(?i)^DBC", "");
+        if (!id.matches("\\d+")) throw new IllegalArgumentException("Database Commons编号格式无效: " + accession);
+        String url = "https://ngdc.cncb.ac.cn/databasecommons/api/biodb/cited?dbId=" + id;
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(25))
+                .header("Accept", "application/json").GET().build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() != 200) throw new IllegalStateException("Database Commons接口HTTP " + response.statusCode());
+        JsonNode body = json.readTree(response.body());
+        JsonNode target = findTarget(body, id);
+        if (target == null) return new RelatedResourceData(List.of(), json.createArrayNode());
+        List<String> pmids = new ArrayList<>();
+        collectPmids(target, pmids);
+        return new RelatedResourceData(pmids.stream().distinct().toList(), target.path("funding"));
+    }
+
+    private JsonNode findTarget(JsonNode node, String id) {
+        if (node == null) return null;
+        if (node.isObject()) {
+            String value = node.path("id").asText("");
+            if (id.equals(value)) return node;
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                JsonNode found = findTarget(fields.next().getValue(), id);
+                if (found != null) return found;
+            }
+        } else if (node.isArray()) {
+            for (JsonNode child : node) {
+                JsonNode found = findTarget(child, id);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private void collectPmids(JsonNode node, List<String> out) {
+        if (node == null) return;
+        if (node.isArray()) node.forEach(child -> collectPmids(child, out));
+        else if (node.isObject()) {
+            node.fields().forEachRemaining(entry -> {
+                String key = entry.getKey().toLowerCase(java.util.Locale.ROOT);
+                JsonNode value = entry.getValue();
+                if ((key.equals("pmid") || key.equals("pubmedid")) && value.isValueNode()) {
+                    String pmid = value.asText().trim();
+                    if (pmid.matches("[1-9][0-9]{5,11}")) out.add(pmid);
+                } else collectPmids(value, out);
+            });
+        }
+    }
+}

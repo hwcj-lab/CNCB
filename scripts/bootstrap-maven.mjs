@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const base='https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.11/apache-maven-3.9.11-bin.zip';
+const [archive,checksum]=await Promise.all([fetch(base,{signal:AbortSignal.timeout(180000)}),fetch(base+'.sha512',{signal:AbortSignal.timeout(30000)})]);
+if(!archive.ok||!checksum.ok)throw Error('Maven下载失败，请使用本机Maven或检查网络');
+const data=Buffer.from(await archive.arrayBuffer());
+const expected=(await checksum.text()).trim().split(/\s+/)[0].toLowerCase();
+if(!/^[a-f0-9]{128}$/.test(expected)||createHash('sha512').update(data).digest('hex')!==expected)throw Error('Maven SHA512校验失败，拒绝使用下载内容');
+await fs.mkdir(path.join(root,'.local/tools'),{recursive:true});
+await fs.writeFile(path.join(root,'.local/tools/maven.zip'),data);
+console.log('Maven ZIP SHA512 verified');

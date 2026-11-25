@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bioplatform.research.integration.mapper.ResearchResourceMapper">
+ <insert id="upsert">
+ INSERT INTO research_stat_publication(publication_key,record_kind,resource_accession,resource_url,title,pub_year,source_codes,source_record_keys,authors_json,affiliation_info,grants_json,cncb_banks_json,keyword_list,raw_payload,content_hash,has_primary_source,is_active)
+ VALUES(CONCAT(#{r.databaseCode},':RESOURCE:',#{r.accession}),'RESOURCE',#{r.accession},#{r.sourceUrl},#{r.title},#{r.releaseYear},#{r.databaseCode},#{keys},#{r.authorsJson},#{r.affiliationInfo},#{r.grantsJson},#{r.cncbBanksJson},#{r.keywordList},#{r.rawPayload},#{hash},#{r.primaryRecord},1)
+ ON DUPLICATE KEY UPDATE
+ has_primary_source=GREATEST(has_primary_source,VALUES(has_primary_source)),is_active=1,
+ relation_status=CASE WHEN NOT(content_hash&lt;=&gt;VALUES(content_hash)) THEN 'PENDING' ELSE relation_status END,
+ title=VALUES(title),resource_url=VALUES(resource_url),pub_year=VALUES(pub_year),authors_json=VALUES(authors_json),affiliation_info=VALUES(affiliation_info),grants_json=VALUES(grants_json),cncb_banks_json=VALUES(cncb_banks_json),keyword_list=VALUES(keyword_list),raw_payload=VALUES(raw_payload),
+ update_time=CASE WHEN NOT(content_hash&lt;=&gt;VALUES(content_hash)) THEN NOW() ELSE update_time END,content_hash=VALUES(content_hash)
+ </insert>
+    <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+SELECT id source_row_id,source_codes source_code,CONCAT('RESOURCE:',resource_accession) source_record_key,'RESOURCE' record_kind,resource_accession resource_accession,resource_url,is_active record_active,NULL pmid,NULL doi,title,pub_year pub_year,authors_json,affiliation_info,grants_json,cncb_banks_json,keyword_list,NULL mesh_headings_json,has_primary_source primary_flag FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND id&gt;#{after} AND is_active=1 AND (has_primary_source=1 OR #{related}=TRUE) ORDER BY id LIMIT #{size}
+    </select>
+    <select id="count" resultType="long">
+SELECT COUNT(*) FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND is_active=1 AND (has_primary_source=1 OR #{related}=TRUE)
+    </select>
+    <select id="years" resultType="java.lang.Integer">
+SELECT DISTINCT pub_year FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND pub_year IS NOT NULL AND is_active=1 AND (has_primary_source=1 OR #{related}=TRUE)
+    </select>
+    <select id="keys" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+SELECT id source_row_id,source_codes source_code,CONCAT('RESOURCE:',resource_accession) source_record_key,'RESOURCE' record_kind,resource_accession resource_accession,resource_url,is_active record_active,NULL pmid,NULL doi,title,pub_year pub_year,authors_json,affiliation_info,grants_json,cncb_banks_json,keyword_list,NULL mesh_headings_json,has_primary_source primary_flag FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND resource_accession IN <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}</foreach>
+    </select>
+    <update id="retire">
+UPDATE research_stat_publication SET is_active=0,update_time=NOW() WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id}) AND is_active=1
+    </update>
+    <select id="pending" resultType="com.example.bioplatform.research.collection.common.dto.PendingRelationRoot">
+SELECT 'SOURCE_KEY' identifier_type,CONCAT('RESOURCE:',resource_accession) identifier_value FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND is_active=1 AND (relation_status='PENDING' OR (#{failed}=TRUE AND relation_status='FAILED')) ORDER BY id LIMIT #{size}
+    </select>
+    <select id="relationSource" resultType="com.example.bioplatform.research.collection.common.dto.RelationSourceRecord">
+SELECT 'SOURCE_KEY' identifier_type,CONCAT('RESOURCE:',resource_accession) identifier_value,NULL pmid,NULL bioproject_accession,grants_json,cncb_banks_json,content_hash source_hash,relation_status FROM research_stat_publication WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id}) LIMIT 1
+    </select>
+    <update id="relationStatus">
+UPDATE research_stat_publication SET relation_status=#{status},relation_last_error=#{error},update_time=NOW() WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id})
+    </update>
+    <update id="grants">
+UPDATE research_stat_publication SET grants_json=#{grants},update_time=NOW() WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id})
+    </update>
+</mapper>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 当前工具目录使用 MyBatis-Plus 基础 CRUD，此文件保留为复杂查询扩展入口。 -->
+<mapper namespace="com.example.bioplatform.catalog.mapper.ToolMapper"/>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.bioplatform.catalog.mapper.DatabaseMapper">
+    <!-- 数据库、数据类型和工具关系查询；批量接口用于避免 N+1 查询。 -->
+    <select id="findResources" resultType="com.example.bioplatform.catalog.entity.DatabaseResource">
+        SELECT d.* FROM database_resource d
+        <where>
+            d.is_visible=TRUE AND d.status='ENABLED'
+            <if test="type != null">AND EXISTS (SELECT 1 FROM database_data_type x JOIN data_type t ON
+                t.id=x.data_type_id WHERE x.database_id=d.id AND t.code=#{type})
+            </if>
+            <if test="keyword != null and keyword != ''">AND (LOWER(d.name) LIKE CONCAT('%',LOWER(#{keyword}),'%') OR
+                LOWER(COALESCE(d.db_zh_title,'')) LIKE CONCAT('%',LOWER(#{keyword}),'%') OR
+                LOWER(COALESCE(d.db_en_title,'')) LIKE CONCAT('%',LOWER(#{keyword}),'%'))
+            </if>
+        </where>
+        ORDER BY d.id
+    </select>
+    <select id="findResourcesByDbIds" resultType="com.example.bioplatform.catalog.entity.DatabaseResource">
+        SELECT DISTINCT d.*
+        FROM database_resource d
+        JOIN database_data_type r ON r.database_id=d.id
+        JOIN data_type t ON t.id=r.data_type_id
+        WHERE d.is_visible=TRUE AND d.status='ENABLED'
+          <if test="type != null">AND t.code=#{type}</if>
+          AND (
+            <foreach collection="dbIds" item="dbId" separator=" OR ">
+                CONCAT(';',LOWER(COALESCE(d.db_id,'')),';') LIKE CONCAT('%;',LOWER(#{dbId}),';%')
+            </foreach>
+          )
+        ORDER BY d.id
+    </select>
+    <select id="findTypes" resultType="com.example.bioplatform.catalog.entity.DataType">
+        SELECT t.*,r.relation_role,r.relation_note
+        FROM data_type t JOIN database_data_type r ON r.data_type_id=t.id
+        WHERE r.database_id=#{id} AND t.is_visible=TRUE AND t.status='ENABLED'
+        ORDER BY t.sort_order,t.id
+    </select>
+    <select id="findTools" resultType="com.example.bioplatform.catalog.entity.OnlineTool">
+        SELECT t.*,r.relation_type,r.relation_basis
+        FROM online_tool t JOIN database_tool r ON r.tool_id=t.id
+        WHERE r.database_id=#{id} AND t.is_visible=TRUE AND t.status='ENABLED'
+        ORDER BY t.id
+    </select>
+    <select id="findTypeRelationsByDatabaseIds" resultType="com.example.bioplatform.catalog.vo.DatabaseTypeRelation">
+        SELECT r.database_id AS database_id,t.code AS data_type_code
+        FROM database_data_type r
+        JOIN data_type t ON t.id=r.data_type_id
+        WHERE t.is_visible=TRUE AND t.status='ENABLED'
+          AND r.database_id IN
+          <foreach collection="databaseIds" item="databaseId" open="(" separator="," close=")">
+              #{databaseId}
+          </foreach>
+        ORDER BY t.sort_order,t.id,r.database_id
+    </select>
+    <select id="findToolsByDatabaseIds" resultType="com.example.bioplatform.catalog.entity.OnlineTool">
+        SELECT t.*,r.database_id AS relation_database_id,r.relation_type,r.relation_basis
+        FROM online_tool t
+        JOIN database_tool r ON r.tool_id=t.id
+        WHERE t.is_visible=TRUE AND t.status='ENABLED'
+          AND r.database_id IN
+          <foreach collection="databaseIds" item="databaseId" open="(" separator="," close=")">
+              #{databaseId}
+          </foreach>
+        ORDER BY r.database_id,t.id
+    </select>
+</mapper>

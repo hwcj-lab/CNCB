@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-11",
+  "jdk": "17.0.21.0.2",
+  "backendTests": {
+    "passed": 9,
+    "failed": 0
+  },
+  "frontendTests": {
+    "passed": 4,
+    "failed": 0
+  },
+  "apiSmoke": [
+    "H2:8080",
+    "MySQL8:8081",
+    "Vite proxy:5173"
+  ],
+  "build": {
+    "backend": "PASS",
+    "frontend": "PASS_WITH_SIZE_WARNING"
+  },
+  "browser": {
+    "date": "2026-11-06",
+    "browser": "Microsoft Edge headless",
+    "viewport": [
+      1440,
+      1080
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "results": [
+      "资源页与后端API联通",
+      "四类数据类型来自API",
+      "蛋白类型可推荐Needle",
+      "数据库关键词搜索",
+      "数据库详情有真实英文名称与证据",
+      "工具外链为调研官方URL",
+      "工具外链安全新窗口",
+      "真实模式显示3条有限样例",
+      "未知机构不显示伪造0",
+      "演示折线 环图 机构 作者四图已渲染",
+      "演示数据显著标记",
+      "机构趋势选择与图表联调",
+      "人员趋势选择与图表联调",
+      "刷新深路由正常且不保留演示结果冒充真实",
+      "390px资源页没有横向溢出",
+      "390px分析页没有横向溢出",
+      "浏览器无pageerror或console.error"
+    ],
+    "errors": []
+  },
+  "extraBrowser": {
+    "checks": [
+      "来源抽屉显示18项官方接口注册记录",
+      "前端年份筛选正确更新统计为4篇",
+      "前端数据库筛选与年份组合正确",
+      "来源文献分页切换正确",
+      "API失败显示错误而非静默退回演示数值",
+      "API错误可重试恢复"
+    ],
+    "externalNavigation": {
+      "status": "EXTERNAL_UNREACHABLE",
+      "url": "chrome-error://chromewebdata/",
+      "reason": "page.waitForURL: net::ERR_EMPTY_RESPONSE"
+    }
+  }
+}

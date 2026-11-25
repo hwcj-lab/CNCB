@@ -1,0 +1,70 @@
+USE bio_portal;
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS openlb_pmid_task (
+ id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '采集任务自增主键',
+ pmid VARCHAR(32) NOT NULL COMMENT 'OpenLB查询使用的PubMed ID，全局唯一',
+ status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/RUNNING/SUCCESS/EMPTY/FAILED',
+ attempt_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '已执行请求次数',
+ last_error VARCHAR(1000) COMMENT '最后一次失败或恢复原因',
+ last_attempt_time DATETIME COMMENT '最后一次开始请求时间',
+ next_retry_time DATETIME COMMENT '失败后允许下次重试的时间',
+ completed_time DATETIME COMMENT 'SUCCESS或EMPTY完成时间',
+ create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+ update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+ UNIQUE KEY uq_openlb_task_pmid(pmid), KEY idx_openlb_task_schedule(status,next_retry_time,id)
+) COMMENT='OpenLB PMID持久化采集队列，用于去重、断点续采和错误重试';
+
+INSERT INTO openlb_pmid_task(pmid,status,attempt_count,completed_time,create_time,update_time)
+SELECT pmid,'SUCCESS',1,NOW(),NOW(),NOW() FROM openlb_publication
+ON DUPLICATE KEY UPDATE status=IF(status IN ('SUCCESS','EMPTY'),status,VALUES(status)),update_time=NOW();
+
+ALTER TABLE openlb_publication
+ MODIFY id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+ MODIFY openlb_id VARCHAR(64) NOT NULL COMMENT 'OpenLB文献标识，例OLB-PM-00000001',
+ MODIFY pmid VARCHAR(32) NOT NULL COMMENT 'PubMed ID，OpenLB采集的唯一去重键',
+ MODIFY owner VARCHAR(80) COMMENT '上游记录所有者',
+ MODIFY pub_status VARCHAR(80) COMMENT '文献收录状态',
+ MODIFY pub_year SMALLINT COMMENT '发表年份；非法值规范为NULL',
+ MODIFY pub_model VARCHAR(80) COMMENT '发表模式',
+ MODIFY journal_issn VARCHAR(40) COMMENT '期刊纸质ISSN',
+ MODIFY journal_eissn VARCHAR(40) COMMENT '期刊电子ISSN',
+ MODIFY journal_volume VARCHAR(80) COMMENT '卷号',
+ MODIFY journal_issue VARCHAR(80) COMMENT '期号',
+ MODIFY pub_date VARCHAR(100) COMMENT '上游原始发表日期文本',
+ MODIFY journal_title VARCHAR(500) COMMENT '期刊名称',
+ MODIFY journal_iso_abbr VARCHAR(200) COMMENT '期刊ISO缩写',
+ MODIFY title TEXT COMMENT '文献标题',
+ MODIFY pagination VARCHAR(100) COMMENT '页码',
+ MODIFY abstract_text LONGTEXT COMMENT '摘要',
+ MODIFY copyright_info TEXT COMMENT '版权信息',
+ MODIFY author_string LONGTEXT COMMENT '作者原始字符串',
+ MODIFY affiliation_info LONGTEXT COMMENT '机构原始信息',
+ MODIFY language VARCHAR(80) COMMENT '语言',
+ MODIFY vernacular_title TEXT COMMENT '本地语言标题',
+ MODIFY publication_type_list TEXT COMMENT '文献类型列表',
+ MODIFY country VARCHAR(120) COMMENT '国家或地区',
+ MODIFY keyword_list LONGTEXT COMMENT '关键词原始文本',
+ MODIFY doi VARCHAR(255) COMMENT 'DOI',
+ MODIFY pii VARCHAR(255) COMMENT '出版商项目标识PII',
+ MODIFY pmcid VARCHAR(64) COMMENT 'PubMed Central ID',
+ MODIFY pprid VARCHAR(128) COMMENT '预印本标识',
+ MODIFY license_text VARCHAR(500) COMMENT '许可证信息',
+ MODIFY category VARCHAR(500) COMMENT '上游分类',
+ MODIFY source_url VARCHAR(1500) NOT NULL COMMENT 'OpenLB文献页或请求来源',
+ MODIFY source_last_modified DATETIME COMMENT 'OpenLB记录最后修改时间',
+ MODIFY source_create_date DATETIME COMMENT 'OpenLB记录创建时间',
+ MODIFY data_source VARCHAR(100) COMMENT '上游数据来源，例PubMed',
+ MODIFY authors_json LONGTEXT COMMENT '作者数组JSON',
+ MODIFY mesh_headings_json LONGTEXT COMMENT 'MeSH主题词JSON',
+ MODIFY data_banks_json LONGTEXT COMMENT 'PubMed DataBank关联JSON',
+ MODIFY chemicals_json LONGTEXT COMMENT '化学物质JSON',
+ MODIFY references_json LONGTEXT COMMENT '参考文献JSON',
+ MODIFY grants_json LONGTEXT COMMENT '论文基金项目JSON，含grantId/agency/country',
+ MODIFY cncb_banks_json LONGTEXT NOT NULL COMMENT 'CNCB数据库资源关联JSON，本表仅保留非空记录',
+ MODIFY raw_payload LONGTEXT NOT NULL COMMENT 'OpenLB PMID接口完整原始响应',
+ MODIFY cncb_bank_count INT UNSIGNED NOT NULL COMMENT 'cncbBanks元素数',
+ MODIFY grant_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT 'grants元素数',
+ MODIFY fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后采集时间',
+ MODIFY create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+ MODIFY update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间';

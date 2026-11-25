@@ -1,7 +1,9 @@
 package com.example.bioplatform.research.collection.common.dto;
 
 
-/** 由关联链路发现并通过OpenLB PMID接口补全的文献批量写入模型。 */
+/**
+ * 由关联链路发现并通过OpenLB PMID接口补全的文献批量写入模型。
+ */
 public record RelatedPublicationWriteRow(
         String pmid,
         String doi,
@@ -19,4 +21,5 @@ public record RelatedPublicationWriteRow(
         String sourceUrl,
         String sourceHash,
         boolean related
-) {}
+) {
+}

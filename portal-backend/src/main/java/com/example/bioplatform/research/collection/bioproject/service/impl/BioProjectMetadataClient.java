@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.bioproject.service.impl;
+
 import com.example.bioplatform.research.common.GrantPayloads;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,7 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** BioProject元数据读取器；缓存项目响应，避免同一项目的多篇论文重复请求。 */
+/**
+ * BioProject元数据读取器；缓存项目响应，避免同一项目的多篇论文重复请求。
+ */
 @Component
 @RequiredArgsConstructor
 public class BioProjectMetadataClient {
@@ -25,25 +28,37 @@ public class BioProjectMetadataClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Map<String, JsonNode> cache = new ConcurrentHashMap<>();
 
-    /** 读取GWH公开BioProject JSON；无法匹配或不可访问时返回null，不阻断论文采集。 */
+    /**
+     * 读取GWH公开BioProject JSON；无法匹配或不可访问时返回null，不阻断论文采集。
+     */
     public JsonNode fetch(String accession) {
         String code = normalize(accession);
         if (code == null) return null;
         return cache.computeIfAbsent(code, this::request);
     }
 
-    /** 保留PubMed原始grants；为空时将funding编号包装，再补充BioProject资助对象。 */
+    /**
+     * 保留PubMed原始grants；为空时将funding编号包装，再补充BioProject资助对象。
+     */
     public ArrayNode mergedGrants(JsonNode pubmedGrants, JsonNode funding, JsonNode project) {
         String primary = GrantPayloads.normalize(pubmedGrants, funding, json);
         ArrayNode result;
-        try { result = (ArrayNode) json.readTree(primary); }
-        catch (Exception ignored) { result = json.createArrayNode(); }
+        try {
+            result = (ArrayNode) json.readTree(primary);
+        } catch (Exception ignored) {
+            result = json.createArrayNode();
+        }
         appendArray(result, project == null ? null : project.path("listGrants"));
-        try { return (ArrayNode) json.readTree(GrantPayloads.merge(result.toString(), null, json)); }
-        catch (Exception ignored) { return result; }
+        try {
+            return (ArrayNode) json.readTree(GrantPayloads.merge(result.toString(), null, json));
+        } catch (Exception ignored) {
+            return result;
+        }
     }
 
-    /** 从BioProject响应读取公开发表信息中列出的PMID。 */
+    /**
+     * 从BioProject响应读取公开发表信息中列出的PMID。
+     */
     public List<String> publicationPmids(JsonNode project) {
         if (project == null || !project.path("listPublication").isArray()) return List.of();
         return java.util.stream.StreamSupport.stream(project.path("listPublication").spliterator(), false)

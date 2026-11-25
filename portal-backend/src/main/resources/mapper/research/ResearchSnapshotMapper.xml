@@ -1,22 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper">
-    <select id="selectOpenLbRecordPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectOpenLbRecordPage"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id, 'OPENLB' source_code, CONCAT('PMID:',pmid) source_record_key, pmid,doi,title,
-               pub_year,journal_title,authors_json,affiliation_info,grants_json,
-               keyword_list,mesh_headings_json,cncb_banks_json,is_primary primary_flag
+        pub_year,journal_title,authors_json,affiliation_info,grants_json,
+        keyword_list,mesh_headings_json,cncb_banks_json,is_primary primary_flag
         FROM openlb_publication
         WHERE id&gt;#{afterId} AND pmid IS NOT NULL AND pmid&lt;&gt;'' AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY id LIMIT #{pageSize}
     </select>
-    <select id="selectGenBaseRecordPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectGenBaseRecordPage"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,'GENBASE' source_code,
-               CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
-                    WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN CONCAT('PMID:',pmid)
-                    ELSE CONCAT('DOI:',doi) END source_record_key,
-               pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
-               bioproject_accession,cncb_banks_json,is_primary primary_flag
+        CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
+        WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN CONCAT('PMID:',pmid)
+        ELSE CONCAT('DOI:',doi) END source_record_key,
+        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
+        bioproject_accession,cncb_banks_json,is_primary primary_flag
         FROM genbase_publication
         WHERE id&gt;#{afterId} AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY id LIMIT #{pageSize}
@@ -38,44 +40,48 @@
         WHERE publish_year IS NOT NULL AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY publish_year
     </select>
-    <select id="selectIntegratedRecordPage" resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
-        SELECT id,publication_key,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,record_kind,resource_accession,resource_url,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
-               cncb_banks_json,has_primary_source
+    <select id="selectIntegratedRecordPage"
+            resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
+        SELECT
+        id,publication_key,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,record_kind,resource_accession,resource_url,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
+        cncb_banks_json,has_primary_source
         FROM research_stat_publication
         WHERE id&gt;#{afterId} AND is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND record_kind='PUBLICATION'
+        AND record_kind='PUBLICATION'
         ORDER BY id LIMIT #{pageSize}
     </select>
-    <select id="selectIntegratedRecordPageForMode" resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
-        SELECT id,publication_key,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,record_kind,resource_accession,resource_url,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
-               cncb_banks_json,has_primary_source
+    <select id="selectIntegratedRecordPageForMode"
+            resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
+        SELECT
+        id,publication_key,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,record_kind,resource_accession,resource_url,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
+        cncb_banks_json,has_primary_source
         FROM research_stat_publication
         WHERE id&gt;#{afterId} AND is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
+        AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
         ORDER BY id LIMIT #{pageSize}
     </select>
     <select id="countIntegratedRecords" resultType="long">
         SELECT COUNT(*) FROM research_stat_publication
         WHERE is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND record_kind='PUBLICATION'
+        AND record_kind='PUBLICATION'
     </select>
     <select id="countIntegratedRecordsForMode" resultType="long">
         SELECT COUNT(*) FROM research_stat_publication
         WHERE is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
+        AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
     </select>
     <select id="selectIntegratedYears" resultType="int">
         SELECT DISTINCT pub_year FROM research_stat_publication
         WHERE is_active=1 AND pub_year IS NOT NULL AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND record_kind='PUBLICATION'
+        AND record_kind='PUBLICATION'
         ORDER BY pub_year
     </select>
     <select id="selectIntegratedYearsForMode" resultType="int">
         SELECT DISTINCT pub_year FROM research_stat_publication
         WHERE is_active=1 AND pub_year IS NOT NULL AND (has_primary_source=1 OR #{includeRelated}=TRUE)
-          AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
+        AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
         ORDER BY pub_year
     </select>
     <insert id="insertDimensionSeeds">
@@ -84,13 +90,15 @@
         VALUES
         <foreach collection="rows" item="r" separator=",">
             (#{r.snapshotId},#{r.scopeCode},#{r.dimensionType},#{r.dimensionKey},
-             #{r.displayName},#{r.statYear},#{r.publicationCount})
+            #{r.displayName},#{r.statYear},#{r.publicationCount})
         </foreach>
     </insert>
-    <select id="selectDimensionSeeds" resultType="com.example.bioplatform.research.collection.common.dto.SnapshotDimensionSeedRow">
-        SELECT id,snapshot_id,scope_code,dimension_type,dimension_key,dimension_hash,display_name,stat_year,publication_count
+    <select id="selectDimensionSeeds"
+            resultType="com.example.bioplatform.research.collection.common.dto.SnapshotDimensionSeedRow">
+        SELECT
+        id,snapshot_id,scope_code,dimension_type,dimension_key,dimension_hash,display_name,stat_year,publication_count
         FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}
-          AND dimension_type IN ('YEAR','TOPIC','DATABASE')
+        AND dimension_type IN ('YEAR','TOPIC','DATABASE')
     </select>
     <insert id="insertDimensionPublications">
         INSERT IGNORE INTO research_stat_dimension_publication(dimension_id,publication_key)
@@ -106,8 +114,8 @@
     </update>
     <delete id="deleteEmptySeedDimensions">
         DELETE FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}
-          AND (dimension_type='YEAR' OR (dimension_type='TOPIC' AND scope_code&lt;&gt;'TOTAL'))
-          AND publication_count=0
+        AND (dimension_type='YEAR' OR (dimension_type='TOPIC' AND scope_code&lt;&gt;'TOTAL'))
+        AND publication_count=0
     </delete>
     <insert id="insertDimensionCandidates">
         INSERT IGNORE INTO research_stat_dimension_candidate
@@ -115,17 +123,19 @@
         VALUES
         <foreach collection="rows" item="r" separator=",">
             (#{r.snapshotId},#{r.scopeCode},#{r.dimensionType},#{r.dimensionHash},#{r.dimensionKey},#{r.displayName},
-             #{r.authorName},#{r.institutionName},#{r.statYear},#{r.publicationKey})
+            #{r.authorName},#{r.institutionName},#{r.statYear},#{r.publicationKey})
         </foreach>
     </insert>
     <insert id="materializeDimensionsFromCandidates">
         INSERT INTO research_stat_dimension
-        (snapshot_id, scope_code, dimension_type, dimension_key, display_name, author_name, institution_name, stat_year, publication_count)
+        (snapshot_id, scope_code, dimension_type, dimension_key, display_name, author_name, institution_name, stat_year,
+        publication_count)
         SELECT #{snapshotId}, ranked.scope_code, ranked.dimension_type, ranked.dimension_key,
         ranked.display_name, ranked.author_name, ranked.institution_name, ranked.stat_year, ranked.publication_count
         FROM (
         SELECT grouped.*,
-        ROW_NUMBER() OVER (PARTITION BY scope_code,dimension_type ORDER BY publication_count DESC,display_name ASC) rank_no
+        ROW_NUMBER() OVER (PARTITION BY scope_code,dimension_type ORDER BY publication_count DESC,display_name ASC)
+        rank_no
         FROM (
         SELECT scope_code, dimension_type, dimension_hash, dimension_key,
         MIN(display_name) display_name, MIN(author_name) author_name, MIN(institution_name) institution_name,
@@ -136,76 +146,97 @@
         ) grouped
         ) ranked
         WHERE (ranked.dimension_type IN ('AUTHOR','INSTITUTION','FUND') AND ranked.rank_no &lt;= 50)
-           OR (ranked.dimension_type='TOPIC' AND ranked.scope_code&lt;&gt;'TOTAL' AND ranked.rank_no &lt;= 50)
+        OR (ranked.dimension_type='TOPIC' AND ranked.scope_code&lt;&gt;'TOTAL' AND ranked.rank_no &lt;= 50)
     </insert>
     <insert id="materializeDimensionPublications">
         INSERT IGNORE INTO research_stat_dimension_publication(dimension_id,publication_key)
         SELECT d.id,c.publication_key
         FROM research_stat_dimension_candidate c
         JOIN research_stat_dimension d
-          ON d.snapshot_id=c.snapshot_id AND d.scope_code=c.scope_code AND d.dimension_type=c.dimension_type
-         AND d.dimension_key=c.dimension_key AND d.stat_year=c.stat_year
+        ON d.snapshot_id=c.snapshot_id AND d.scope_code=c.scope_code AND d.dimension_type=c.dimension_type
+        AND d.dimension_key=c.dimension_key AND d.stat_year=c.stat_year
         WHERE c.snapshot_id=#{snapshotId} AND c.dimension_type IN ('AUTHOR','INSTITUTION','FUND','TOPIC')
     </insert>
-    <delete id="deleteDimensionCandidates">DELETE FROM research_stat_dimension_candidate WHERE snapshot_id=#{snapshotId}</delete>
+    <delete id="deleteDimensionCandidates">DELETE FROM research_stat_dimension_candidate WHERE
+        snapshot_id=#{snapshotId}
+    </delete>
     <delete id="deleteSnapshotDimensions">DELETE FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}</delete>
     <delete id="deleteOrphanDimensionCandidates">
         DELETE FROM research_stat_dimension_candidate
         WHERE snapshot_id NOT IN (
-            SELECT id FROM research_stat_snapshot WHERE status='BUILDING'
+        SELECT id FROM research_stat_snapshot WHERE status='BUILDING'
         )
     </delete>
     <delete id="deleteIncompleteSnapshotDimensions">
         DELETE FROM research_stat_dimension
         WHERE snapshot_id IN (SELECT id FROM research_stat_snapshot WHERE status&lt;&gt;'SUCCESS')
     </delete>
-    <select id="selectOpenLbRecordsByPmids" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectOpenLbRecordsByPmids"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,pmid,doi,title,pub_year,journal_title,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary primary_flag
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
+        primary_flag
         FROM openlb_publication WHERE pmid IN
         <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
     </select>
-    <select id="selectGenBaseRecordsByPaperIds" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectGenBaseRecordsByPaperIds"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'GENBASE' source_code,
-               CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
-                    WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
-               pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary primary_flag
+        CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
+        WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
+        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary
+        primary_flag
         FROM genbase_publication WHERE paper_id IN
         <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
-    <select id="selectOpenLbRecordsByIdentifiers" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectOpenLbRecordsByIdentifiers"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,pmid,doi,title,pub_year,journal_title,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary primary_flag
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
+        primary_flag
         FROM openlb_publication WHERE
         <trim prefixOverrides="OR">
-            <if test="pmids != null and pmids.size() > 0">OR pmid IN <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach></if>
-            <if test="dois != null and dois.size() > 0">OR doi IN <foreach collection="dois" item="doi" open="(" separator="," close=")">#{doi}</foreach></if>
+            <if test="pmids != null and pmids.size() > 0">OR pmid IN
+                <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
+            </if>
+            <if test="dois != null and dois.size() > 0">OR doi IN
+                <foreach collection="dois" item="doi" open="(" separator="," close=")">#{doi}</foreach>
+            </if>
         </trim>
     </select>
-    <select id="selectGenBaseRecordsByIdentifiers" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+    <select id="selectGenBaseRecordsByIdentifiers"
+            resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'GENBASE' source_code,
-               CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
-                    WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
-               pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
-               authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary primary_flag
+        CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
+        WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
+        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary
+        primary_flag
         FROM genbase_publication WHERE
         <trim prefixOverrides="OR">
-            <if test="pmids != null and pmids.size() > 0">OR pmid IN <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach></if>
-            <if test="dois != null and dois.size() > 0">OR doi IN <foreach collection="dois" item="doi" open="(" separator="," close=")">#{doi}</foreach></if>
+            <if test="pmids != null and pmids.size() > 0">OR pmid IN
+                <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
+            </if>
+            <if test="dois != null and dois.size() > 0">OR doi IN
+                <foreach collection="dois" item="doi" open="(" separator="," close=")">#{doi}</foreach>
+            </if>
         </trim>
     </select>
-    <select id="selectConfirmedDatabaseTopics" resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
+    <select id="selectConfirmedDatabaseTopics"
+            resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
         SELECT LOWER(database_code) database_code, c.topic_code, c.topic_name
         FROM research_database_topic r
         JOIN research_topic_category c ON c.id=r.topic_id
         WHERE r.verification_status='CONFIRMED' AND c.status='ENABLED'
     </select>
-    <select id="selectEnabledTopicCategories" resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
+    <select id="selectEnabledTopicCategories"
+            resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
         SELECT topic_code,topic_name FROM research_topic_category
         WHERE status='ENABLED' ORDER BY sort_order,topic_code
     </select>
-    <select id="selectFundDictionaryByGrantIds" resultType="com.example.bioplatform.research.collection.common.dto.ResearchFundDictionaryEntry">
+    <select id="selectFundDictionaryByGrantIds"
+            resultType="com.example.bioplatform.research.collection.common.dto.ResearchFundDictionaryEntry">
         SELECT grant_id,full_name
         FROM research_fund_dictionary
         WHERE status='ENABLED' AND grant_id IN
@@ -221,70 +252,80 @@
 
     <insert id="insertSnapshot" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO research_stat_snapshot
-            (version_no,snapshot_name,status,source_codes,source_count,include_related,include_resources,started_time)
-        VALUES (#{versionNo},#{snapshotName},'BUILDING',#{sourceCodes},#{sourceCount},#{includeRelated},#{includeResources},#{startedTime})
+        (version_no,snapshot_name,status,source_codes,source_count,include_related,include_resources,started_time)
+        VALUES
+        (#{versionNo},#{snapshotName},'BUILDING',#{sourceCodes},#{sourceCount},#{includeRelated},#{includeResources},#{startedTime})
     </insert>
 
     <select id="countBuildingSnapshots" resultType="long">
         SELECT COUNT(*) FROM research_stat_snapshot WHERE status='BUILDING'
     </select>
-    <select id="selectAnyBuildingSnapshot" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
+    <select id="selectAnyBuildingSnapshot"
+            resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
         SELECT * FROM research_stat_snapshot
         WHERE status='BUILDING'
         ORDER BY started_time ASC,id ASC
         LIMIT 1
     </select>
 
-    <select id="selectIntegratedIdentityMatches" resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
+    <select id="selectIntegratedIdentityMatches"
+            resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
         SELECT id,publication_key,pmid,doi FROM research_stat_publication WHERE
-        publication_key IN <foreach collection="keys" item="v" open="(" close=")" separator=",">#{v}</foreach>
-        <if test="pmids.size()>0">OR pmid IN <foreach collection="pmids" item="v" open="(" close=")" separator=",">#{v}</foreach></if>
-        <if test="dois.size()>0">OR doi IN <foreach collection="dois" item="v" open="(" close=")" separator=",">#{v}</foreach></if>
+        publication_key IN
+        <foreach collection="keys" item="v" open="(" close=")" separator=",">#{v}</foreach>
+        <if test="pmids.size()>0">OR pmid IN
+            <foreach collection="pmids" item="v" open="(" close=")" separator=",">#{v}</foreach>
+        </if>
+        <if test="dois.size()>0">OR doi IN
+            <foreach collection="dois" item="v" open="(" close=")" separator=",">#{v}</foreach>
+        </if>
     </select>
     <update id="deactivateIntegratedKeys">
-        UPDATE research_stat_publication SET is_active=0 WHERE is_active=1 AND record_kind='PUBLICATION' AND publication_key IN
+        UPDATE research_stat_publication SET is_active=0 WHERE is_active=1 AND record_kind='PUBLICATION' AND
+        publication_key IN
         <foreach collection="keys" item="v" open="(" close=")" separator=",">#{v}</foreach>
     </update>
     <insert id="insertPublications">
         INSERT INTO research_stat_publication
-            (publication_key,content_hash,record_kind,resource_accession,resource_url,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,
-             authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,has_primary_source,is_active,create_time,update_time)
+        (publication_key,content_hash,record_kind,resource_accession,resource_url,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,has_primary_source,is_active,create_time,update_time)
         VALUES
         <foreach collection="rows" item="r" separator=",">
             (#{r.publicationKey},#{r.contentHash},#{r.recordKind},#{r.resourceAccession},#{r.resourceUrl},#{r.pmid},#{r.doi},#{r.title},#{r.pubYear},
-             #{r.journalTitle},#{r.sourceCodes},CAST(#{r.sourceRecordKeys} AS JSON),
-             #{r.authorsJson},#{r.affiliationInfo},#{r.grantsJson},#{r.keywordList},#{r.meshHeadingsJson},#{r.cncbBanksJson},
-             #{r.hasPrimarySource},1,NOW(),NOW())
+            #{r.journalTitle},#{r.sourceCodes},CAST(#{r.sourceRecordKeys} AS JSON),
+            #{r.authorsJson},#{r.affiliationInfo},#{r.grantsJson},#{r.keywordList},#{r.meshHeadingsJson},#{r.cncbBanksJson},
+            #{r.hasPrimarySource},1,NOW(),NOW())
         </foreach>
         ON DUPLICATE KEY UPDATE
-            record_kind=VALUES(record_kind),resource_accession=VALUES(resource_accession),resource_url=VALUES(resource_url),
-            pmid=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(pmid),pmid),
-            doi=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(doi),doi),
-            title=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(title),title),
-            pub_year=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(pub_year),pub_year),
-            journal_title=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(journal_title),journal_title),
-            source_codes=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(source_codes),source_codes),
-            source_record_keys=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(source_record_keys),source_record_keys),
-            authors_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(authors_json),authors_json),
-            affiliation_info=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(affiliation_info),affiliation_info),
-            grants_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(grants_json),grants_json),
-            keyword_list=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(keyword_list),keyword_list),
-            mesh_headings_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(mesh_headings_json),mesh_headings_json),
-            cncb_banks_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(cncb_banks_json),cncb_banks_json),
-            has_primary_source=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(has_primary_source),has_primary_source),
-            is_active=1,
-            update_time=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),NOW(),update_time),
-            content_hash=VALUES(content_hash)
+        record_kind=VALUES(record_kind),resource_accession=VALUES(resource_accession),resource_url=VALUES(resource_url),
+        pmid=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(pmid),pmid),
+        doi=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(doi),doi),
+        title=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(title),title),
+        pub_year=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(pub_year),pub_year),
+        journal_title=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(journal_title),journal_title),
+        source_codes=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(source_codes),source_codes),
+        source_record_keys=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(source_record_keys),source_record_keys),
+        authors_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(authors_json),authors_json),
+        affiliation_info=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(affiliation_info),affiliation_info),
+        grants_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(grants_json),grants_json),
+        keyword_list=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(keyword_list),keyword_list),
+        mesh_headings_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+        cncb_banks_json=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+        has_primary_source=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),VALUES(has_primary_source),has_primary_source),
+        is_active=1,
+        update_time=IF(NOT(content_hash&lt;=&gt;VALUES(content_hash)),NOW(),update_time),
+        content_hash=VALUES(content_hash)
     </insert>
 
-    <select id="selectIntegratedPublicationDetails" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication">
+    <select id="selectIntegratedPublicationDetails"
+            resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication">
         SELECT 'TOTAL' scope_code,publication_key,source_record_keys,pmid,doi,title,pub_year,journal_title,
-               source_codes,authors_json,affiliation_info,grants_json,cncb_banks_json,record_kind,resource_accession,resource_url,
-               CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;''
-                    THEN CONCAT('https://pubmed.ncbi.nlm.nih.gov/',pmid,'/')
-                    WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN
-                      CASE WHEN doi LIKE 'http%' THEN doi ELSE CONCAT('https://doi.org/',doi) END
-                    ELSE NULL END source_url
+        source_codes,authors_json,affiliation_info,grants_json,cncb_banks_json,record_kind,resource_accession,resource_url,
+        CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;''
+        THEN CONCAT('https://pubmed.ncbi.nlm.nih.gov/',pmid,'/')
+        WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN
+        CASE WHEN doi LIKE 'http%' THEN doi ELSE CONCAT('https://doi.org/',doi) END
+        ELSE NULL END source_url
         FROM research_stat_publication
         WHERE publication_key IN
         <foreach collection="publicationKeys" item="key" open="(" separator="," close=")">#{key}</foreach>
@@ -292,10 +333,11 @@
         <foreach collection="publicationKeys" item="key" separator=",">#{key}</foreach>)
     </select>
     <update id="markSuccess">
-        UPDATE research_stat_snapshot SET status='SUCCESS', publication_count=#{publicationCount},resource_count=#{resourceCount},
-            year_coverage_count=#{yearCoverage}, topic_coverage_count=#{topicCoverage},
-            author_coverage_count=#{authorCoverage}, institution_coverage_count=#{institutionCoverage},
-            fund_coverage_count=#{fundCoverage}, completed_time=NOW(), error_message=NULL
+        UPDATE research_stat_snapshot SET status='SUCCESS',
+        publication_count=#{publicationCount},resource_count=#{resourceCount},
+        year_coverage_count=#{yearCoverage}, topic_coverage_count=#{topicCoverage},
+        author_coverage_count=#{authorCoverage}, institution_coverage_count=#{institutionCoverage},
+        fund_coverage_count=#{fundCoverage}, completed_time=NOW(), error_message=NULL
         WHERE id=#{id} AND status='BUILDING'
     </update>
 
@@ -323,7 +365,8 @@
         SELECT * FROM research_stat_snapshot ORDER BY version_no DESC LIMIT 100
     </select>
     <select id="selectDimensions" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension">
-        SELECT id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count
+        SELECT
+        id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count
         FROM research_stat_dimension
         WHERE snapshot_id=#{snapshotId} AND scope_code=#{scopeCode} AND dimension_type=#{type}
         ORDER BY publication_count DESC LIMIT #{limit}

@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.openlb.service.impl;
+
 import com.example.bioplatform.research.common.GrantPayloads;
 import com.example.bioplatform.research.collection.openlb.dto.OpenLbCollectionStartRequest;
 import com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow;
@@ -63,16 +64,20 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
     @Value("${app.openlb.endpoint:https://ngdc.cncb.ac.cn/openlb/api/pmid?pmid=}")
     private String endpoint;
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public synchronized OpenLbCollectionStatus importCsv() {
-        if (running.get()) throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "采集运行中，不能导入新任务");
+        if (running.get())
+            throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "采集运行中，不能导入新任务");
         Path path = Path.of(csvPath).toAbsolutePath().normalize();
         if (!Files.isRegularFile(path) && !Path.of(csvPath).isAbsolute()) {
             Path moduleRelative = Path.of("..", csvPath).toAbsolutePath().normalize();
             if (Files.isRegularFile(moduleRelative)) path = moduleRelative;
         }
-        if (!Files.isRegularFile(path)) throw new BusinessException(HttpStatus.BAD_REQUEST, "OPENLB_CSV_NOT_FOUND", "未找到PMID文件：" + path);
+        if (!Files.isRegularFile(path))
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "OPENLB_CSV_NOT_FOUND", "未找到PMID文件：" + path);
         try {
             var pmids = Files.readAllLines(path, StandardCharsets.UTF_8).stream().skip(1).map(String::trim)
                     .filter(value -> value.matches("\\d+")).distinct().toList();
@@ -85,10 +90,13 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public synchronized OpenLbCollectionStatus start(OpenLbCollectionStartRequest request) {
-        if (!running.compareAndSet(false, true)) throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "OpenLB采集已在运行");
+        if (!running.compareAndSet(false, true))
+            throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "OpenLB采集已在运行");
         stopRequested.set(false);
         startedAt = LocalDateTime.now();
         finishedAt = null;
@@ -99,7 +107,9 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
         return status();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public OpenLbCollectionStatus stop() {
         stopRequested.set(true);
@@ -107,16 +117,21 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
         return status();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public synchronized OpenLbCollectionStatus retryFailed() {
-        if (running.get()) throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "采集运行中，不能重置任务");
+        if (running.get())
+            throw new BusinessException(HttpStatus.CONFLICT, "OPENLB_JOB_RUNNING", "采集运行中，不能重置任务");
         int updated = mapper.retryFailed();
         message = "已重置失败任务：" + updated;
         return status();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public OpenLbCollectionStatus status() {
         var counts = new LinkedHashMap<String, Long>();
@@ -138,7 +153,10 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
             message = "采集运行中";
             while (!stopRequested.get()) {
                 var pmids = mapper.findPendingPmids(config.batchSizeOrDefault());
-                if (pmids.isEmpty()) { message = "没有可执行的待采集任务"; break; }
+                if (pmids.isEmpty()) {
+                    message = "没有可执行的待采集任务";
+                    break;
+                }
                 mapper.markRunning(pmids);
                 var futures = pmids.stream().map(pmid -> CompletableFuture.supplyAsync(() -> collectOne(pmid, config), workers)).toList();
                 var results = futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).toList();
@@ -179,7 +197,8 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
             }
             if (response.statusCode() != 200) throw new IOException("HTTP " + response.statusCode());
             JsonNode payload = json.readTree(response.body());
-            if (!"200".equals(payload.path("code").asText())) throw new IOException("OpenLB code " + payload.path("code").asText());
+            if (!"200".equals(payload.path("code").asText()))
+                throw new IOException("OpenLB code " + payload.path("code").asText());
             JsonNode record = firstRecord(payload, pmid);
             if (record == null) {
                 onSuccess(config.minDelayMsOrDefault());
@@ -224,9 +243,9 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
         // 采集只保留作者原始署名；机构解析在快照批处理中进行，避免逐篇调用ROR拖慢采集。
         String authors = compact(row.path("authors"));
         return OpenLbPublicationWriteRow.builder()
-                .pmid(text(row,"pmid")).pubYear(validYear(row.path("year").asInt())).journalTitle(text(row,"journalTitle"))
-                .title(text(row,"title")).abstractText(text(row,"abstractText")).affiliationInfo(affiliationSummary(row, authors))
-                .keywordList(text(row,"keywordList")).doi(text(row,"doi")).sourceUrl(text(row,"url"))
+                .pmid(text(row, "pmid")).pubYear(validYear(row.path("year").asInt())).journalTitle(text(row, "journalTitle"))
+                .title(text(row, "title")).abstractText(text(row, "abstractText")).affiliationInfo(affiliationSummary(row, authors))
+                .keywordList(text(row, "keywordList")).doi(text(row, "doi")).sourceUrl(text(row, "url"))
                 .authorsJson(authors).meshHeadingsJson(compact(row.path("meshHeadings")))
                 .grantsJson(GrantPayloads.normalize(row.path("grants"), row.path("funding"), json))
                 .cncbBanksJson(compact(row.path("cncbBanks"))).rawPayload(result.rawPayload)
@@ -266,21 +285,37 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
             long now = System.currentTimeMillis();
             long observed = nextRequestAt.get();
             long target = Math.max(now, observed);
-            if (nextRequestAt.compareAndSet(observed, target + currentDelayMs.get())) { wait = target - now; break; }
+            if (nextRequestAt.compareAndSet(observed, target + currentDelayMs.get())) {
+                wait = target - now;
+                break;
+            }
         }
         if (wait > 0) Thread.sleep(wait);
     }
 
-    /** 从 OpenLB 响应数组中优先找到 PMID 精确匹配的记录。 */
+    /**
+     * 从 OpenLB 响应数组中优先找到 PMID 精确匹配的记录。
+     */
     private JsonNode firstRecord(JsonNode payload, String pmid) {
-        for (JsonNode node : payload.path("result").path("data")) if (pmid.equals(node.path("pmid").asText())) return node;
+        for (JsonNode node : payload.path("result").path("data"))
+            if (pmid.equals(node.path("pmid").asText())) return node;
         return payload.path("result").path("data").isEmpty() ? null : payload.path("result").path("data").get(0);
     }
 
-    /** 将嵌套 JSON 压缩为单行文本；极端序列化失败时使用空数组保持字段可解析。 */
-    private String compact(JsonNode node) { try { return json.writeValueAsString(node); } catch (Exception e) { return "[]"; } }
+    /**
+     * 将嵌套 JSON 压缩为单行文本；极端序列化失败时使用空数组保持字段可解析。
+     */
+    private String compact(JsonNode node) {
+        try {
+            return json.writeValueAsString(node);
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
 
-    /** 顶层affiliationInfo为空时，从每位作者自己的affiliation汇总文章机构。 */
+    /**
+     * 顶层affiliationInfo为空时，从每位作者自己的affiliation汇总文章机构。
+     */
     private String affiliationSummary(JsonNode row, String authorsJson) {
         String direct = text(row, "affiliationInfo");
         if (direct != null && !direct.isBlank()) return direct;
@@ -291,47 +326,93 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
                 String value = text(author, "institutionName");
                 if (value != null && !value.isBlank()) affiliations.add(value);
             });
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         if (affiliations.isEmpty()) {
             JsonNode authors = row.path("authors");
             if (authors.isArray()) authors.forEach(author -> {
-            String value = text(author, "affiliation");
-            if (value != null && !value.isBlank()) affiliations.add(value.trim().replaceAll("\\s+", " "));
+                String value = text(author, "affiliation");
+                if (value != null && !value.isBlank()) affiliations.add(value.trim().replaceAll("\\s+", " "));
             });
         }
         return affiliations.isEmpty() ? null : String.join("; ", affiliations);
     }
 
-    /** 读取可空文本字段，统一将 JSON null 转为 Java null。 */
-    private static String text(JsonNode node, String field) { var value=node.get(field); return value==null||value.isNull()?null:value.asText(); }
-
-    /** 只接受1500至2200年；OpenLB中的0或越界值按缺失处理。 */
-    private static Integer validYear(int year) { return year >= 1500 && year <= 2200 ? year : null; }
-
-    /** 限制持久化错误文本长度，避免超过 last_error 字段上限。 */
-    private static String abbreviate(String value,int max){ return value==null?null:value.substring(0,Math.min(value.length(),max)); }
-
-    /** 展开异常链并返回最底层可诊断原因。 */
-    private static String rootMessage(Throwable e){ while(e.getCause()!=null)e=e.getCause(); return e.getMessage()==null?e.getClass().getSimpleName():e.getMessage(); }
-
-    /** 生成稳定的SHA-256十六进制摘要，供批量upsert判断上游记录是否变化。 */
-    private static String sha256(String value){
-        try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}
-        catch(Exception e){throw new IllegalStateException("无法计算来源摘要",e);}
+    /**
+     * 读取可空文本字段，统一将 JSON null 转为 Java null。
+     */
+    private static String text(JsonNode node, String field) {
+        var value = node.get(field);
+        return value == null || value.isNull() ? null : value.asText();
     }
 
-    /** 创建守护线程，防止采集线程在 Spring 容器关闭时独立阻塞 JVM 退出。 */
-    private static Thread daemon(Runnable r,String name){ var t=new Thread(r,name);t.setDaemon(true);return t; }
+    /**
+     * 只接受1500至2200年；OpenLB中的0或越界值按缺失处理。
+     */
+    private static Integer validYear(int year) {
+        return year >= 1500 && year <= 2200 ? year : null;
+    }
 
-    private enum Outcome { SUCCESS, EMPTY, FAILED }
+    /**
+     * 限制持久化错误文本长度，避免超过 last_error 字段上限。
+     */
+    private static String abbreviate(String value, int max) {
+        return value == null ? null : value.substring(0, Math.min(value.length(), max));
+    }
 
-    /** 单个 PMID 的内存采集结果，在网络层与批量持久化层之间传递。 */
+    /**
+     * 展开异常链并返回最底层可诊断原因。
+     */
+    private static String rootMessage(Throwable e) {
+        while (e.getCause() != null) e = e.getCause();
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    /**
+     * 生成稳定的SHA-256十六进制摘要，供批量upsert判断上游记录是否变化。
+     */
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("无法计算来源摘要", e);
+        }
+    }
+
+    /**
+     * 创建守护线程，防止采集线程在 Spring 容器关闭时独立阻塞 JVM 退出。
+     */
+    private static Thread daemon(Runnable r, String name) {
+        var t = new Thread(r, name);
+        t.setDaemon(true);
+        return t;
+    }
+
+    private enum Outcome {SUCCESS, EMPTY, FAILED}
+
+    /**
+     * 单个 PMID 的内存采集结果，在网络层与批量持久化层之间传递。
+     */
     private record CollectionResult(String pmid, Outcome outcome, JsonNode record, String rawPayload, String error) {
-        static CollectionResult success(String pmid, JsonNode record, String rawPayload) { return new CollectionResult(pmid, Outcome.SUCCESS, record, rawPayload, null); }
-        static CollectionResult empty(String pmid) { return new CollectionResult(pmid, Outcome.EMPTY, null, null, null); }
-        static CollectionResult failed(String pmid, String error) { return new CollectionResult(pmid, Outcome.FAILED, null, null, error); }
+        static CollectionResult success(String pmid, JsonNode record, String rawPayload) {
+            return new CollectionResult(pmid, Outcome.SUCCESS, record, rawPayload, null);
+        }
+
+        static CollectionResult empty(String pmid) {
+            return new CollectionResult(pmid, Outcome.EMPTY, null, null, null);
+        }
+
+        static CollectionResult failed(String pmid, String error) {
+            return new CollectionResult(pmid, Outcome.FAILED, null, null, error);
+        }
     }
 
-    /** Spring 容器销毁时请求停止采集并关闭任务调度器。 */
-    @PreDestroy void shutdown(){ stopRequested.set(true); jobExecutor.shutdownNow(); }
+    /**
+     * Spring 容器销毁时请求停止采集并关闭任务调度器。
+     */
+    @PreDestroy
+    void shutdown() {
+        stopRequested.set(true);
+        jobExecutor.shutdownNow();
+    }
 }

@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.biocode.service.impl;
+
 import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
 
@@ -17,14 +18,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** BioCode工具详情解析器：BT000004映射为工具接口ID 4。 */
+/**
+ * BioCode工具详情解析器：BT000004映射为工具接口ID 4。
+ */
 @Component
 @RequiredArgsConstructor
 public class BioCodeRelatedResourceResolver implements RelatedResourceResolver {
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    @Override public List<String> supportedDatabaseNames() { return List.of("BioCode", "Biological Tool Codes"); }
+    @Override
+    public List<String> supportedDatabaseNames() {
+        return List.of("BioCode", "Biological Tool Codes");
+    }
 
     @Override
     public RelatedResourceData findRelatedPublications(String accession, String officialUrl) throws Exception {

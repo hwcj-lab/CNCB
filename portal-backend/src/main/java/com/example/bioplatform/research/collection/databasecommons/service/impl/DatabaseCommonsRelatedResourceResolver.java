@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.databasecommons.service.impl;
+
 import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
 
@@ -16,14 +17,19 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Database Commons引用资源解析器；仅取目标dbId条目中明确列出的PMID。 */
+/**
+ * Database Commons引用资源解析器；仅取目标dbId条目中明确列出的PMID。
+ */
 @Component
 @RequiredArgsConstructor
 public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceResolver {
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
-    @Override public List<String> supportedDatabaseNames() { return List.of("Database Commons", "DatabaseCommons"); }
+    @Override
+    public List<String> supportedDatabaseNames() {
+        return List.of("Database Commons", "DatabaseCommons");
+    }
 
     @Override
     public RelatedResourceData findRelatedPublications(String accession, String officialUrl) throws Exception {
@@ -33,7 +39,8 @@ public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceRe
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(25))
                 .header("Accept", "application/json").GET().build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (response.statusCode() != 200) throw new IllegalStateException("Database Commons接口HTTP " + response.statusCode());
+        if (response.statusCode() != 200)
+            throw new IllegalStateException("Database Commons接口HTTP " + response.statusCode());
         JsonNode body = json.readTree(response.body());
         JsonNode target = findTarget(body, id);
         if (target == null) return new RelatedResourceData(List.of(), json.createArrayNode());

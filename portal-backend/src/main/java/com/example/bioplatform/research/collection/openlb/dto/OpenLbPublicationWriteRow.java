@@ -28,6 +28,8 @@ public class OpenLbPublicationWriteRow {
     private String grantsJson;
     private String cncbBanksJson;
     private String rawPayload;
-    /** 规范化来源内容SHA-256；相同则跳过字段覆盖，变化则重新标记待关联。 */
+    /**
+     * 规范化来源内容SHA-256；相同则跳过字段覆盖，变化则重新标记待关联。
+     */
     private String sourceHash;
 }

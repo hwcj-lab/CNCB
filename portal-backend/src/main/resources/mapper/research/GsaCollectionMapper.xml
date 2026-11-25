@@ -56,7 +56,7 @@ SELECT * FROM gsa_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY i
     <select id="latest" resultType="com.example.bioplatform.research.collection.gsa.vo.GsaCollectionJob">
 SELECT * FROM gsa_collection_job ORDER BY id DESC LIMIT 1
     </select>
-    <insert id="create">
+    <insert id="create" useGeneratedKeys="true" keyProperty="id">
 INSERT INTO gsa_collection_job(status,phase,cache_file) VALUES('RUNNING','DOWNLOAD',#{cacheFile})
     </insert>
     <update id="resume">

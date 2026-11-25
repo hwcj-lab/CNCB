@@ -1,95 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.bioproject.mapper.BioProjectCollectionMapper">
- <select id="existing" resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
-  SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM bioproject_publication WHERE
-  <foreach collection="rows" item="r" separator=" OR ">(bioproject_record_key=#{r.recordKey}
-   <if test="r.pmid != null"> OR pmid=#{r.pmid}</if><if test="r.doi != null"> OR doi=#{r.doi}</if>)</foreach>
- </select>
- <insert id="upsertSeeds">
- INSERT INTO bioproject_publication(bioproject_record_key,pmid,doi,title,pub_year,journal_title,source_url,grants_json,cncb_banks_json,
- raw_payload,bioproject_raw_payload,bioproject_source_hash,source_hash,bioproject_accession,is_primary,is_related,bioproject_enrichment_status)
- VALUES <foreach collection="rows" item="r" separator=",">
- (#{r.recordKey},#{r.pmid},#{r.doi},#{r.title},#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},#{r.grantsJson},#{r.cncbBanksJson},
- #{r.rawPayload},#{r.rawPayload},#{r.sourceHash},#{r.sourceHash},#{r.bioprojectAccession},#{r.primary},#{r.related},'PENDING')
- </foreach>
- ON DUPLICATE KEY UPDATE
- is_primary=GREATEST(is_primary,VALUES(is_primary)),is_related=GREATEST(is_related,VALUES(is_related)),grants_json=COALESCE(NULLIF(VALUES(grants_json),'[]'),grants_json),
- bioproject_record_key=COALESCE(bioproject_record_key,VALUES(bioproject_record_key)),
- relation_status=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN 'PENDING' ELSE relation_status END,
- bioproject_enrichment_status=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN 'PENDING' ELSE bioproject_enrichment_status END,
- pmid=COALESCE(pmid,VALUES(pmid)),doi=COALESCE(VALUES(doi),doi),
- title=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN VALUES(title) ELSE title END,
- pub_year=COALESCE(VALUES(pub_year),pub_year),journal_title=COALESCE(NULLIF(VALUES(journal_title),''),journal_title),
- cncb_banks_json=VALUES(cncb_banks_json),bioproject_accession=VALUES(bioproject_accession),
- bioproject_raw_payload=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN VALUES(bioproject_raw_payload) ELSE bioproject_raw_payload END,
- bioproject_source_hash=VALUES(bioproject_source_hash)
- </insert>
- <update id="updateMetadata">
- UPDATE bioproject_publication SET
- relation_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN CASE WHEN #{r.sourceHash} IS NOT NULL AND NOT(source_hash&lt;=&gt;#{r.sourceHash}) THEN 'PENDING' ELSE relation_status END</foreach> ELSE relation_status END,
- pmid=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.pmid},pmid)</foreach> ELSE pmid END,
- doi=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.doi},doi)</foreach> ELSE doi END,
- title=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(NULLIF(#{r.title},''),title)</foreach> ELSE title END,
- pub_year=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.pubYear},pub_year)</foreach> ELSE pub_year END,
- journal_title=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(NULLIF(#{r.journalTitle},''),journal_title)</foreach> ELSE journal_title END,
- authors_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.authorsJson}</foreach> ELSE authors_json END,
- affiliation_info=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.affiliationInfo}</foreach> ELSE affiliation_info END,
- grants_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.grantsJson}</foreach> ELSE grants_json END,
- cncb_banks_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.cncbBanksJson}</foreach> ELSE cncb_banks_json END,
- mesh_headings_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.meshHeadingsJson}</foreach> ELSE mesh_headings_json END,
- keyword_list=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.keywordList}</foreach> ELSE keyword_list END,
- abstract_text=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.abstractText}</foreach> ELSE abstract_text END,
- raw_payload=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.rawPayload},raw_payload)</foreach> ELSE raw_payload END,
- bioproject_enrichment_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.status}</foreach> ELSE bioproject_enrichment_status END,
- bioproject_enrichment_error=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.error}</foreach> ELSE bioproject_enrichment_error END,
- source_hash=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.sourceHash},source_hash)</foreach> ELSE source_hash END,
- bioproject_enrichment_attempts=bioproject_enrichment_attempts+1,bioproject_metadata_checked_at=NOW()
- WHERE id IN <foreach collection="rows" item="r" open="(" close=")" separator=",">#{r.id}</foreach>
- </update>
-    <update id="recover">
-UPDATE bioproject_collection_job SET status='STOPPED',last_error='进程中断，等待继续' WHERE status='RUNNING'
+    <select id="existing"
+            resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
+        SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM
+        bioproject_publication WHERE
+        <foreach collection="rows" item="r" separator=" OR ">(bioproject_record_key=#{r.recordKey}
+            <if test="r.pmid != null">OR pmid=#{r.pmid}</if>
+            <if test="r.doi != null">OR doi=#{r.doi}</if>)
+        </foreach>
+    </select>
+    <insert id="upsertSeeds">
+        INSERT INTO
+        bioproject_publication(bioproject_record_key,pmid,doi,title,pub_year,journal_title,source_url,grants_json,cncb_banks_json,
+        raw_payload,bioproject_raw_payload,bioproject_source_hash,source_hash,bioproject_accession,is_primary,is_related,bioproject_enrichment_status)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.recordKey},#{r.pmid},#{r.doi},#{r.title},#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},#{r.grantsJson},#{r.cncbBanksJson},
+            #{r.rawPayload},#{r.rawPayload},#{r.sourceHash},#{r.sourceHash},#{r.bioprojectAccession},#{r.primary},#{r.related},'PENDING')
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        is_primary=GREATEST(is_primary,VALUES(is_primary)),is_related=GREATEST(is_related,VALUES(is_related)),grants_json=COALESCE(NULLIF(VALUES(grants_json),'[]'),grants_json),
+        bioproject_record_key=COALESCE(bioproject_record_key,VALUES(bioproject_record_key)),
+        relation_status=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN 'PENDING' ELSE
+        relation_status END,
+        bioproject_enrichment_status=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN
+        'PENDING' ELSE bioproject_enrichment_status END,
+        pmid=COALESCE(pmid,VALUES(pmid)),doi=COALESCE(VALUES(doi),doi),
+        title=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN VALUES(title) ELSE title
+        END,
+        pub_year=COALESCE(VALUES(pub_year),pub_year),journal_title=COALESCE(NULLIF(VALUES(journal_title),''),journal_title),
+        cncb_banks_json=VALUES(cncb_banks_json),bioproject_accession=VALUES(bioproject_accession),
+        bioproject_raw_payload=CASE WHEN NOT(bioproject_source_hash&lt;=&gt;VALUES(bioproject_source_hash)) THEN
+        VALUES(bioproject_raw_payload) ELSE bioproject_raw_payload END,
+        bioproject_source_hash=VALUES(bioproject_source_hash)
+    </insert>
+    <update id="updateMetadata">
+        UPDATE bioproject_publication SET
+        relation_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN CASE WHEN #{r.sourceHash} IS NOT
+        NULL AND NOT(source_hash&lt;=&gt;#{r.sourceHash}) THEN 'PENDING' ELSE relation_status END
+    </foreach> ELSE relation_status END,
+        pmid=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.pmid},pmid)</foreach> ELSE pmid
+        END,
+        doi=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.doi},doi)</foreach> ELSE doi END,
+        title=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(NULLIF(#{r.title},''),title)
+    </foreach> ELSE title END,
+        pub_year=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN COALESCE(#{r.pubYear},pub_year)</foreach> ELSE
+        pub_year END,
+        journal_title=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN
+        COALESCE(NULLIF(#{r.journalTitle},''),journal_title)
+    </foreach> ELSE journal_title END,
+        authors_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.authorsJson}</foreach> ELSE
+        authors_json END,
+        affiliation_info=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.affiliationInfo}</foreach> ELSE
+        affiliation_info END,
+        grants_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.grantsJson}</foreach> ELSE
+        grants_json END,
+        cncb_banks_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.cncbBanksJson}</foreach> ELSE
+        cncb_banks_json END,
+        mesh_headings_json=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.meshHeadingsJson}</foreach> ELSE
+        mesh_headings_json END,
+        keyword_list=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.keywordList}</foreach> ELSE
+        keyword_list END,
+        abstract_text=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.abstractText}</foreach> ELSE
+        abstract_text END,
+        raw_payload=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN
+        COALESCE(#{r.rawPayload},raw_payload)
+    </foreach> ELSE raw_payload END,
+        bioproject_enrichment_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.status}</foreach> ELSE
+        bioproject_enrichment_status END,
+        bioproject_enrichment_error=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN #{r.error}</foreach> ELSE
+        bioproject_enrichment_error END,
+        source_hash=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN
+        COALESCE(#{r.sourceHash},source_hash)
+    </foreach> ELSE source_hash END,
+        bioproject_enrichment_attempts=bioproject_enrichment_attempts+1,bioproject_metadata_checked_at=NOW()
+        WHERE id IN
+        <foreach collection="rows" item="r" open="(" close=")" separator=",">#{r.id}</foreach>
     </update>
-    <select id="resumable" resultType="com.example.bioplatform.research.collection.bioproject.vo.BioProjectCollectionJob">
-SELECT * FROM bioproject_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
+    <update id="recover">
+        UPDATE bioproject_collection_job SET status='STOPPED',last_error='进程中断，等待继续' WHERE status='RUNNING'
+    </update>
+    <select id="resumable"
+            resultType="com.example.bioplatform.research.collection.bioproject.vo.BioProjectCollectionJob">
+        SELECT * FROM bioproject_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
     </select>
     <select id="latest" resultType="com.example.bioplatform.research.collection.bioproject.vo.BioProjectCollectionJob">
-SELECT * FROM bioproject_collection_job ORDER BY id DESC LIMIT 1
+        SELECT * FROM bioproject_collection_job ORDER BY id DESC LIMIT 1
     </select>
-    <insert id="create">
-INSERT INTO bioproject_collection_job(status,phase,cache_file) VALUES('RUNNING','DOWNLOAD',#{cacheFile})
+    <insert id="create" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bioproject_collection_job(status,phase,cache_file) VALUES('RUNNING','DOWNLOAD',#{cacheFile})
     </insert>
     <update id="resume">
-UPDATE bioproject_collection_job SET status='RUNNING',last_error=NULL,completed_time=NULL WHERE id=#{id}
+        UPDATE bioproject_collection_job SET status='RUNNING',last_error=NULL,completed_time=NULL WHERE id=#{id}
     </update>
     <update id="phase">
-UPDATE bioproject_collection_job SET phase=#{phase} WHERE id=#{id}
+        UPDATE bioproject_collection_job SET phase=#{phase} WHERE id=#{id}
     </update>
     <update id="advance">
-UPDATE bioproject_collection_job SET next_index=#{next},rows_imported=rows_imported+#{size} WHERE id=#{id}
+        UPDATE bioproject_collection_job SET next_index=#{next},rows_imported=rows_imported+#{size} WHERE id=#{id}
     </update>
     <update id="progress">
-UPDATE bioproject_collection_job SET metadata_processed=metadata_processed+#{size} WHERE id=#{id}
+        UPDATE bioproject_collection_job SET metadata_processed=metadata_processed+#{size} WHERE id=#{id}
     </update>
     <update id="finish">
-UPDATE bioproject_collection_job SET status=#{status},last_error=#{error},completed_time=NOW() WHERE id=#{id}
+        UPDATE bioproject_collection_job SET status=#{status},last_error=#{error},completed_time=NOW() WHERE id=#{id}
     </update>
     <update id="retryFailed">
-UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE bioproject_enrichment_status='FAILED'
+        UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE
+        bioproject_enrichment_status='FAILED'
     </update>
     <update id="resetEnrichment">
-UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE is_primary=1
+        UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE
+        is_primary=1
     </update>
     <select id="counts" resultType="map">
-SELECT bioproject_enrichment_status status,COUNT(*) total FROM bioproject_publication WHERE is_primary=1 GROUP BY bioproject_enrichment_status
+        SELECT bioproject_enrichment_status status,COUNT(*) total FROM bioproject_publication WHERE is_primary=1 GROUP
+        BY bioproject_enrichment_status
     </select>
-    <select id="pending" resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
-SELECT id,bioproject_record_key record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,cncb_banks_json,mesh_headings_json,keyword_list,abstract_text,bioproject_accession FROM bioproject_publication WHERE is_primary=1 AND bioproject_enrichment_status='PENDING' ORDER BY id LIMIT #{limit}
+    <select id="pending"
+            resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
+        SELECT id,bioproject_record_key
+        record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,cncb_banks_json,mesh_headings_json,keyword_list,abstract_text,bioproject_accession
+        FROM bioproject_publication WHERE is_primary=1 AND bioproject_enrichment_status='PENDING' ORDER BY id LIMIT
+        #{limit}
     </select>
-    <select id="lockMetadata" resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
-SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM bioproject_publication WHERE id IN <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}</foreach> FOR UPDATE
+    <select id="lockMetadata"
+            resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
+        SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM
+        bioproject_publication WHERE id IN <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}
+    </foreach> FOR UPDATE
     </select>
     <update id="markRelated">
-UPDATE bioproject_publication SET is_related=1,grants_json=#{grants},cncb_banks_json=#{banks} WHERE id=#{id}
+        UPDATE bioproject_publication SET is_related=1,grants_json=#{grants},cncb_banks_json=#{banks} WHERE id=#{id}
     </update>
 </mapper>

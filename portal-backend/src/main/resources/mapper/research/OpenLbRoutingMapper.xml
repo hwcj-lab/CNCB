@@ -3,80 +3,92 @@
 <mapper namespace="com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper">
     <insert id="write">
         INSERT INTO ${table}(pmid,doi,title,abstract_text,pub_year,journal_title,source_url,
-          authors_json,affiliation_info,keyword_list,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,source_hash,fetched_at) VALUES
+        authors_json,affiliation_info,keyword_list,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,source_hash,fetched_at)
+        VALUES
         <foreach collection="rows" item="row" separator=",">
-          (#{row.pmid},#{row.doi},#{row.title},#{row.abstractText},#{row.pubYear},#{row.journalTitle},#{row.sourceUrl},
-           #{row.authorsJson},#{row.affiliationInfo},#{row.keywordList},#{row.meshHeadingsJson},#{row.grantsJson},
-           #{row.cncbBanksJson},#{row.rawPayload},#{row.sourceHash},NOW())
+            (#{row.pmid},#{row.doi},#{row.title},#{row.abstractText},#{row.pubYear},#{row.journalTitle},#{row.sourceUrl},
+            #{row.authorsJson},#{row.affiliationInfo},#{row.keywordList},#{row.meshHeadingsJson},#{row.grantsJson},
+            #{row.cncbBanksJson},#{row.rawPayload},#{row.sourceHash},NOW())
         </foreach>
         ON DUPLICATE KEY UPDATE
-          is_primary=1,
-          relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
-          doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(doi),doi),
-          pub_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(pub_year),pub_year),
-          journal_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_title),journal_title),
-          title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(title),title),
-          abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
-          source_url=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(source_url),source_url),
-          affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
-          keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
-          authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
-          mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
-          grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
-          cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
-          raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
-          source_hash=VALUES(source_hash)
+        is_primary=1,
+        relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+        doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(doi),doi),
+        pub_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(pub_year),pub_year),
+        journal_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_title),journal_title),
+        title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(title),title),
+        abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
+        source_url=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(source_url),source_url),
+        affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
+        keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
+        authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
+        mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+        grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
+        cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+        raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
+        source_hash=VALUES(source_hash)
     </insert>
-  <insert id="writeGenBase">
-    INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
-      openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
-      grants_json,cncb_banks_json,openlb_raw_payload,is_primary,is_related,relation_status,source_hash,fetched_at)
-    VALUES
-    <foreach collection="rows" item="r" separator=",">
-      (NULL,#{r.pmid},#{r.doi},COALESCE(#{r.title},CONCAT('PMID ',#{r.pmid})),#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},CAST(#{r.rawPayload} AS JSON),
-       'SUCCESS',#{r.abstractText},#{r.affiliationInfo},#{r.keywordList},#{r.authorsJson},#{r.meshHeadingsJson},
-       #{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},1,0,'PENDING',#{r.sourceHash},NOW())
-    </foreach>
-    ON DUPLICATE KEY UPDATE
-      is_primary=1,
-      is_related=GREATEST(is_related,VALUES(is_related)),
-      relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
-      paper_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(paper_title),paper_title),
-      abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
-      affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
-      keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
-      authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
-      mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
-      grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
-      cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
-      openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
-      source_hash=VALUES(source_hash)
-  </insert>
+    <insert id="writeGenBase">
+        INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
+        openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
+        grants_json,cncb_banks_json,openlb_raw_payload,is_primary,is_related,relation_status,source_hash,fetched_at)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (NULL,#{r.pmid},#{r.doi},COALESCE(#{r.title},CONCAT('PMID
+            ',#{r.pmid})),#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},CAST(#{r.rawPayload} AS JSON),
+            'SUCCESS',#{r.abstractText},#{r.affiliationInfo},#{r.keywordList},#{r.authorsJson},#{r.meshHeadingsJson},
+            #{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},1,0,'PENDING',#{r.sourceHash},NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        is_primary=1,
+        is_related=GREATEST(is_related,VALUES(is_related)),
+        relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+        paper_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(paper_title),paper_title),
+        abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
+        affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
+        keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
+        authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
+        mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+        grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
+        cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+        openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
+        source_hash=VALUES(source_hash)
+    </insert>
     <select id="inventoryPage" resultType="string">
-SELECT pmid FROM openlb_pmid_task WHERE pmid &gt; #{after} ORDER BY pmid LIMIT 100
+        SELECT pmid FROM openlb_pmid_task WHERE pmid &gt; #{after} ORDER BY pmid LIMIT 100
     </select>
     <select id="cursor" resultType="string">
-SELECT cursor_pmid FROM openlb_bank_inventory_job WHERE id=1
+        SELECT cursor_pmid FROM openlb_bank_inventory_job WHERE id=1
     </select>
     <update id="progress">
-UPDATE openlb_bank_inventory_job SET cursor_pmid=#{cursor},message=#{message},update_time=NOW() WHERE id=1
+        UPDATE openlb_bank_inventory_job SET cursor_pmid=#{cursor},message=#{message},update_time=NOW() WHERE id=1
     </update>
     <select id="routes" resultType="map">
-SELECT * FROM openlb_bank_route WHERE enabled=1
+        SELECT * FROM openlb_bank_route WHERE enabled=1
     </select>
     <insert id="inventory">
-INSERT INTO openlb_bank_inventory(pmid,bank_index,name,accession,link,db,bank_pmid) VALUES(#{pmid},#{idx},#{name},#{accession},#{link},#{db},#{bankPmid}) ON DUPLICATE KEY UPDATE name=VALUES(name),accession=VALUES(accession),link=VALUES(link),db=VALUES(db),bank_pmid=VALUES(bank_pmid)
+        INSERT INTO openlb_bank_inventory(pmid,bank_index,name,accession,link,db,bank_pmid)
+        VALUES(#{pmid},#{idx},#{name},#{accession},#{link},#{db},#{bankPmid}) ON DUPLICATE KEY UPDATE
+        name=VALUES(name),accession=VALUES(accession),link=VALUES(link),db=VALUES(db),bank_pmid=VALUES(bank_pmid)
     </insert>
     <select id="summary" resultType="map">
-SELECT db,COUNT(*) records,COUNT(DISTINCT pmid) publications FROM openlb_bank_inventory GROUP BY db ORDER BY records DESC
+        SELECT db,COUNT(*) records,COUNT(DISTINCT pmid) publications FROM openlb_bank_inventory GROUP BY db ORDER BY
+        records DESC
     </select>
     <select id="inventoryRows" resultType="map">
-SELECT * FROM openlb_bank_inventory ORDER BY pmid,bank_index LIMIT #{size} OFFSET #{offset}
+        SELECT * FROM openlb_bank_inventory ORDER BY pmid,bank_index LIMIT #{size} OFFSET #{offset}
     </select>
     <select id="legacy" resultType="com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow">
-SELECT * FROM openlb_publication WHERE id&gt;#{after} ORDER BY id LIMIT 100
+        SELECT * FROM openlb_publication WHERE id&gt;#{after} ORDER BY id LIMIT 100
     </select>
     <insert id="copyRelations">
-INSERT IGNORE INTO research_publication_relation(database_code,left_identifier_type,left_identifier,right_identifier_type,right_identifier,evidence_url,discovery_depth,active) SELECT #{code},left_identifier_type,left_identifier,right_identifier_type,right_identifier,evidence_url,discovery_depth,active FROM research_publication_relation WHERE database_code='OPENLB' AND ((left_identifier_type='PMID' AND left_identifier IN <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach>) OR (right_identifier_type='PMID' AND right_identifier IN <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach>))
+        INSERT IGNORE INTO
+        research_publication_relation(database_code,left_identifier_type,left_identifier,right_identifier_type,right_identifier,evidence_url,discovery_depth,active)
+        SELECT
+        #{code},left_identifier_type,left_identifier,right_identifier_type,right_identifier,evidence_url,discovery_depth,active
+        FROM research_publication_relation WHERE database_code='OPENLB' AND ((left_identifier_type='PMID' AND
+        left_identifier IN <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach>) OR
+        (right_identifier_type='PMID' AND right_identifier IN <foreach collection='pmids' item='v' open='(' close=')'
+                                                                       separator=','>#{v}</foreach>))
     </insert>
 </mapper>

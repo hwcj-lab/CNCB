@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.openlb.mapper;
+
 import com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow;
 import com.example.bioplatform.research.collection.common.vo.TaskStatusCount;
 

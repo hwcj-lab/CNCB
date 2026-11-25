@@ -1,254 +1,318 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper">
-  <insert id="createJob">
-    INSERT INTO research_relation_crawl_job(database_code,root_identifier_type,root_identifier,
-      refresh_publication,refresh_relations,status,max_publications,request_delay_ms,started_time)
-    VALUES(#{databaseCode},#{identifierType},#{identifier},#{refreshPublication},#{refreshRelations},'RUNNING',
-      #{maxPublications},#{requestDelayMs},NOW())
-  </insert>
-  <select id="lastInsertId" resultType="java.lang.Long">SELECT LAST_INSERT_ID()</select>
-  <insert id="insertRootQueue">
-    INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
-    VALUES(#{jobId},#{identifierType},#{identifier},0,'PENDING')
-  </insert>
-  <select id="selectPendingRoots" resultType="com.example.bioplatform.research.collection.common.dto.PendingRelationRoot">
-    <choose>
-      <when test="databaseCode == 'BIOPROJECT'">
-        SELECT CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN 'PMID' WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN 'DOI' ELSE 'SOURCE_KEY' END identifier_type,
-               CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN pmid WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN doi ELSE bioproject_record_key END identifier_value
-        FROM bioproject_publication WHERE (relation_status='PENDING' <if test="includeFailed">OR relation_status='FAILED'</if>)
-          AND (pmid IS NOT NULL OR doi IS NOT NULL OR bioproject_record_key IS NOT NULL)
-        ORDER BY id LIMIT #{limit}
-      </when>
-      <when test="databaseCode == 'GSA'">
-        SELECT CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN 'PMID' WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN 'DOI' ELSE 'SOURCE_KEY' END identifier_type,
-               CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN pmid WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN doi ELSE gsa_record_key END identifier_value
-        FROM gsa_publication WHERE (relation_status='PENDING' <if test="includeFailed">OR relation_status='FAILED'</if>)
-          AND (pmid IS NOT NULL OR doi IS NOT NULL OR gsa_record_key IS NOT NULL)
-        ORDER BY id LIMIT #{limit}
-      </when>
-      <when test="databaseCode != 'GENBASE'">
-        SELECT 'PMID' identifier_type,pmid identifier_value
-        FROM ${databaseCode.toLowerCase()}_publication
-        WHERE relation_status='PENDING'
-        <if test="includeFailed">OR relation_status='FAILED'</if>
-        ORDER BY id LIMIT #{limit}
-      </when>
-      <otherwise>
-        SELECT CASE WHEN paper_id IS NOT NULL THEN 'PAPER_ID'
-                    WHEN pmid IS NOT NULL THEN 'PMID' ELSE 'DOI' END identifier_type,
-               CASE WHEN paper_id IS NOT NULL THEN CAST(paper_id AS CHAR)
-                    WHEN pmid IS NOT NULL THEN pmid ELSE doi END identifier_value
-        FROM genbase_publication
-        WHERE (relation_status='PENDING'
-        <if test="includeFailed">OR relation_status='FAILED'</if>)
-          AND (paper_id IS NOT NULL OR pmid IS NOT NULL OR doi IS NOT NULL)
-        ORDER BY id LIMIT #{limit}
-      </otherwise>
-    </choose>
-  </select>
-  <insert id="insertRootQueueBatch">
-    INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
-    VALUES
-    <foreach collection="roots" item="root" separator=",">
-      (#{jobId},#{root.identifierType},#{root.identifierValue},0,'PENDING')
-    </foreach>
-  </insert>
-  <select id="selectJob" resultType="com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus">
-    SELECT FALSE process_running,FALSE stop_requested,j.id job_id,j.database_code,j.root_identifier_type,
-      j.root_identifier,j.status,j.max_publications,j.request_delay_ms,j.processed_count,j.discovered_count,
-      j.relation_count,(SELECT COUNT(*) FROM research_relation_crawl_queue q WHERE q.job_id=j.id AND q.status='PENDING') pending_count,
-      j.last_error,j.started_time,j.completed_time
-    FROM research_relation_crawl_job j
-    <choose><when test="jobId != null">WHERE j.id=#{jobId}</when><otherwise>ORDER BY j.id DESC LIMIT 1</otherwise></choose>
-  </select>
-  <select id="countPendingQueue" resultType="long">
-    SELECT COUNT(*) FROM research_relation_crawl_queue WHERE job_id=#{jobId} AND status='PENDING'
-  </select>
-  <update id="resumeJob">
-    UPDATE research_relation_crawl_job SET status='RUNNING',last_error=NULL,completed_time=NULL,update_time=NOW()
-    WHERE id=#{jobId} AND status IN ('RUNNING','PAUSED','STOPPED','FAILED')
-  </update>
-  <update id="recoverRunningQueue">
-    UPDATE research_relation_crawl_queue SET status='PENDING',last_error='应用中断后恢复',update_time=NOW()
-    WHERE job_id=#{jobId} AND status='RUNNING'
-  </update>
-  <select id="findNextPending" resultType="com.example.bioplatform.research.collection.common.dto.RelationQueueNode">
-    SELECT id,job_id,identifier_type,identifier_value,depth FROM research_relation_crawl_queue
-    WHERE job_id=#{jobId} AND status='PENDING' ORDER BY depth,id LIMIT 1
-  </select>
-  <update id="markQueueRunning">UPDATE research_relation_crawl_queue SET status='RUNNING',attempt_count=attempt_count+1,update_time=NOW() WHERE id=#{id} AND status='PENDING'</update>
-  <update id="finishQueue">UPDATE research_relation_crawl_queue SET status=#{status},last_error=NULL,update_time=NOW() WHERE id=#{id}</update>
-  <update id="failQueue">UPDATE research_relation_crawl_queue SET status='FAILED',last_error=#{error},update_time=NOW() WHERE id=#{id}</update>
-  <insert id="insertQueueIgnore">
-    INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
-    VALUES(#{jobId},#{identifierType},#{identifier},#{depth},'PENDING')
-  </insert>
-  <select id="selectSourceRecord" resultType="com.example.bioplatform.research.collection.common.dto.RelationSourceRecord">
-    <choose>
-      <when test="databaseCode == 'BIOPROJECT'">
-        SELECT #{identifierType} identifier_type,#{identifier} identifier_value,pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status FROM bioproject_publication WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND bioproject_record_key=#{identifier}) LIMIT 1
-      </when>
-      <when test="databaseCode == 'GSA'">
-        SELECT #{identifierType} identifier_type,#{identifier} identifier_value,pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status FROM gsa_publication WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier}) LIMIT 1
-      </when>
-      <when test="databaseCode != 'GENBASE'">
-        SELECT 'PMID' identifier_type,pmid identifier_value,pmid,NULL bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status
-        FROM ${databaseCode.toLowerCase()}_publication WHERE pmid=#{identifier} LIMIT 1
-      </when>
-      <otherwise>
-        SELECT #{identifierType} identifier_type,
-          CASE WHEN #{identifierType}='PAPER_ID' THEN CAST(paper_id AS CHAR)
-               WHEN #{identifierType}='DOI' THEN doi ELSE pmid END identifier_value,
-          pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status
-        FROM genbase_publication
-        WHERE (#{identifierType}='PAPER_ID' AND paper_id=CAST(#{identifier} AS UNSIGNED))
-           OR (#{identifierType}='PMID' AND pmid=#{identifier})
-           OR (#{identifierType}='DOI' AND doi=#{identifier})
-        LIMIT 1
-      </otherwise>
-    </choose>
-  </select>
-  <update id="updateSourceGrants">
-    <choose>
-      <when test="databaseCode != 'GENBASE'">
-        UPDATE ${databaseCode.toLowerCase()}_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE pmid=#{pmid}
-      </when>
-      <otherwise>
-        UPDATE genbase_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE pmid=#{pmid}
-      </otherwise>
-    </choose>
-  </update>
-  <insert id="upsertOpenLbRelated">
-    INSERT INTO ${databaseCode.toLowerCase()}_publication(pmid,pub_year,journal_title,title,abstract_text,affiliation_info,
-      keyword_list,doi,source_url,authors_json,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,
-      is_primary,is_related,relation_status,source_hash,fetched_at)
-    VALUES
-    <foreach collection="rows" item="r" separator=",">
-      (#{r.pmid},#{r.pubYear},#{r.journalTitle},#{r.title},#{r.abstractText},#{r.affiliationInfo},
-       #{r.keywordList},#{r.doi},#{r.sourceUrl},#{r.authorsJson},#{r.meshHeadingsJson},#{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},
-       0,#{r.related},'PENDING',#{r.sourceHash},NOW())
-    </foreach>
-    ON DUPLICATE KEY UPDATE
-      is_related=GREATEST(is_related,VALUES(is_related)),
-      relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
-      pub_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(pub_year),pub_year),
-      journal_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_title),journal_title),
-      doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(doi),doi),
-      title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(title),title),
-      abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
-      source_url=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(source_url),source_url),
-      affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
-      keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
-      authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
-      mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
-      grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
-      cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
-      raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
-      source_hash=VALUES(source_hash)
-  </insert>
-  <insert id="upsertGenBaseRelated">
-    INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
-      openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
-      grants_json,cncb_banks_json,openlb_raw_payload,is_primary,is_related,relation_status,source_hash,fetched_at)
-    VALUES
-    <foreach collection="rows" item="r" separator=",">
-      (NULL,#{r.pmid},#{r.doi},COALESCE(#{r.title},CONCAT('PMID ',#{r.pmid})),#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},CAST(#{r.rawPayload} AS JSON),
-       'SUCCESS',#{r.abstractText},#{r.affiliationInfo},#{r.keywordList},#{r.authorsJson},#{r.meshHeadingsJson},
-       #{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},0,#{r.related},'PENDING',#{r.sourceHash},NOW())
-    </foreach>
-    ON DUPLICATE KEY UPDATE
-      is_related=GREATEST(is_related,VALUES(is_related)),
-      relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
-      paper_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(paper_title),paper_title),
-      abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
-      affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
-      keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
-      authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
-      mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
-      grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
-      cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
-      openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
-      source_hash=VALUES(source_hash)
-  </insert>
-  <insert id="upsertRelation">
-    INSERT INTO research_publication_relation(database_code,left_identifier_type,left_identifier,
-      right_identifier_type,right_identifier,relation_type,evidence_url,discovery_depth,active,last_seen_run_id,last_seen_time)
-    VALUES(#{databaseCode},#{leftType},#{leftValue},#{rightType},#{rightValue},'RELATED_PUBLICATION',#{evidenceUrl},#{depth},1,#{jobId},NOW())
-    ON DUPLICATE KEY UPDATE active=1,evidence_url=COALESCE(VALUES(evidence_url),evidence_url),
-      discovery_depth=LEAST(discovery_depth,VALUES(discovery_depth)),last_seen_run_id=VALUES(last_seen_run_id),last_seen_time=NOW()
-  </insert>
-  <update id="deactivateUnseenRelations">
-    UPDATE research_publication_relation SET active=0,update_time=NOW()
-    WHERE database_code=#{databaseCode} AND relation_type='RELATED_PUBLICATION'
-      AND ((left_identifier_type=#{identifierType} AND left_identifier=#{identifier})
+    <insert id="createJob">
+        INSERT INTO research_relation_crawl_job(database_code,root_identifier_type,root_identifier,
+        refresh_publication,refresh_relations,status,max_publications,request_delay_ms,started_time)
+        VALUES(#{databaseCode},#{identifierType},#{identifier},#{refreshPublication},#{refreshRelations},'RUNNING',
+        #{maxPublications},#{requestDelayMs},NOW())
+    </insert>
+    <select id="lastInsertId" resultType="java.lang.Long">SELECT LAST_INSERT_ID()</select>
+    <insert id="insertRootQueue">
+        INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
+        VALUES(#{jobId},#{identifierType},#{identifier},0,'PENDING')
+    </insert>
+    <select id="selectPendingRoots"
+            resultType="com.example.bioplatform.research.collection.common.dto.PendingRelationRoot">
+        <choose>
+            <when test="databaseCode == 'BIOPROJECT'">
+                SELECT CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN 'PMID' WHEN doi IS NOT NULL AND doi&lt;&gt;''
+                THEN 'DOI' ELSE 'SOURCE_KEY' END identifier_type,
+                CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN pmid WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN doi
+                ELSE bioproject_record_key END identifier_value
+                FROM bioproject_publication WHERE (relation_status='PENDING' <if test="includeFailed">OR
+                relation_status='FAILED'</if>)
+                AND (pmid IS NOT NULL OR doi IS NOT NULL OR bioproject_record_key IS NOT NULL)
+                ORDER BY id LIMIT #{limit}
+            </when>
+            <when test="databaseCode == 'GSA'">
+                SELECT CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN 'PMID' WHEN doi IS NOT NULL AND doi&lt;&gt;''
+                THEN 'DOI' ELSE 'SOURCE_KEY' END identifier_type,
+                CASE WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN pmid WHEN doi IS NOT NULL AND doi&lt;&gt;'' THEN doi
+                ELSE gsa_record_key END identifier_value
+                FROM gsa_publication WHERE (relation_status='PENDING' <if test="includeFailed">OR
+                relation_status='FAILED'</if>)
+                AND (pmid IS NOT NULL OR doi IS NOT NULL OR gsa_record_key IS NOT NULL)
+                ORDER BY id LIMIT #{limit}
+            </when>
+            <when test="databaseCode != 'GENBASE'">
+                SELECT 'PMID' identifier_type,pmid identifier_value
+                FROM ${databaseCode.toLowerCase()}_publication
+                WHERE relation_status='PENDING'
+                <if test="includeFailed">OR relation_status='FAILED'</if>
+                ORDER BY id LIMIT #{limit}
+            </when>
+            <otherwise>
+                SELECT CASE WHEN paper_id IS NOT NULL THEN 'PAPER_ID'
+                WHEN pmid IS NOT NULL THEN 'PMID' ELSE 'DOI' END identifier_type,
+                CASE WHEN paper_id IS NOT NULL THEN CAST(paper_id AS CHAR)
+                WHEN pmid IS NOT NULL THEN pmid ELSE doi END identifier_value
+                FROM genbase_publication
+                WHERE (relation_status='PENDING'
+                <if test="includeFailed">OR relation_status='FAILED'</if>)
+                AND (paper_id IS NOT NULL OR pmid IS NOT NULL OR doi IS NOT NULL)
+                ORDER BY id LIMIT #{limit}
+            </otherwise>
+        </choose>
+    </select>
+    <insert id="insertRootQueueBatch">
+        INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
+        VALUES
+        <foreach collection="roots" item="root" separator=",">
+            (#{jobId},#{root.identifierType},#{root.identifierValue},0,'PENDING')
+        </foreach>
+    </insert>
+    <select id="selectJob"
+            resultType="com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus">
+        SELECT FALSE process_running,FALSE stop_requested,j.id job_id,j.database_code,j.root_identifier_type,
+        j.root_identifier,j.status,j.max_publications,j.request_delay_ms,j.processed_count,j.discovered_count,
+        j.relation_count,(SELECT COUNT(*) FROM research_relation_crawl_queue q WHERE q.job_id=j.id AND
+        q.status='PENDING') pending_count,
+        j.last_error,j.started_time,j.completed_time
+        FROM research_relation_crawl_job j
+        <choose>
+            <when test="jobId != null">WHERE j.id=#{jobId}</when>
+            <otherwise>ORDER BY j.id DESC LIMIT 1</otherwise>
+        </choose>
+    </select>
+    <select id="countPendingQueue" resultType="long">
+        SELECT COUNT(*) FROM research_relation_crawl_queue WHERE job_id=#{jobId} AND status='PENDING'
+    </select>
+    <update id="resumeJob">
+        UPDATE research_relation_crawl_job SET status='RUNNING',last_error=NULL,completed_time=NULL,update_time=NOW()
+        WHERE id=#{jobId} AND status IN ('RUNNING','PAUSED','STOPPED','FAILED')
+    </update>
+    <update id="recoverRunningQueue">
+        UPDATE research_relation_crawl_queue SET status='PENDING',last_error='应用中断后恢复',update_time=NOW()
+        WHERE job_id=#{jobId} AND status='RUNNING'
+    </update>
+    <select id="findNextPending" resultType="com.example.bioplatform.research.collection.common.dto.RelationQueueNode">
+        SELECT id,job_id,identifier_type,identifier_value,depth FROM research_relation_crawl_queue
+        WHERE job_id=#{jobId} AND status='PENDING' ORDER BY depth,id LIMIT 1
+    </select>
+    <update id="markQueueRunning">UPDATE research_relation_crawl_queue SET
+        status='RUNNING',attempt_count=attempt_count+1,update_time=NOW() WHERE id=#{id} AND status='PENDING'
+    </update>
+    <update id="finishQueue">UPDATE research_relation_crawl_queue SET status=#{status},last_error=NULL,update_time=NOW()
+        WHERE id=#{id}
+    </update>
+    <update id="failQueue">UPDATE research_relation_crawl_queue SET
+        status='FAILED',last_error=#{error},update_time=NOW() WHERE id=#{id}
+    </update>
+    <insert id="insertQueueIgnore">
+        INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
+        VALUES(#{jobId},#{identifierType},#{identifier},#{depth},'PENDING')
+    </insert>
+    <select id="selectSourceRecord"
+            resultType="com.example.bioplatform.research.collection.common.dto.RelationSourceRecord">
+        <choose>
+            <when test="databaseCode == 'BIOPROJECT'">
+                SELECT #{identifierType} identifier_type,#{identifier}
+                identifier_value,pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status FROM
+                bioproject_publication WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR
+                (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND
+                bioproject_record_key=#{identifier}) LIMIT 1
+            </when>
+            <when test="databaseCode == 'GSA'">
+                SELECT #{identifierType} identifier_type,#{identifier}
+                identifier_value,pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status FROM
+                gsa_publication WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND
+                doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier}) LIMIT 1
+            </when>
+            <when test="databaseCode != 'GENBASE'">
+                SELECT 'PMID' identifier_type,pmid identifier_value,pmid,NULL
+                bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status
+                FROM ${databaseCode.toLowerCase()}_publication WHERE pmid=#{identifier} LIMIT 1
+            </when>
+            <otherwise>
+                SELECT #{identifierType} identifier_type,
+                CASE WHEN #{identifierType}='PAPER_ID' THEN CAST(paper_id AS CHAR)
+                WHEN #{identifierType}='DOI' THEN doi ELSE pmid END identifier_value,
+                pmid,bioproject_accession,grants_json,cncb_banks_json,source_hash,relation_status
+                FROM genbase_publication
+                WHERE (#{identifierType}='PAPER_ID' AND paper_id=CAST(#{identifier} AS UNSIGNED))
+                OR (#{identifierType}='PMID' AND pmid=#{identifier})
+                OR (#{identifierType}='DOI' AND doi=#{identifier})
+                LIMIT 1
+            </otherwise>
+        </choose>
+    </select>
+    <update id="updateSourceGrants">
+        <choose>
+            <when test="databaseCode != 'GENBASE'">
+                UPDATE ${databaseCode.toLowerCase()}_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE
+                pmid=#{pmid}
+            </when>
+            <otherwise>
+                UPDATE genbase_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE pmid=#{pmid}
+            </otherwise>
+        </choose>
+    </update>
+    <insert id="upsertOpenLbRelated">
+        INSERT INTO
+        ${databaseCode.toLowerCase()}_publication(pmid,pub_year,journal_title,title,abstract_text,affiliation_info,
+        keyword_list,doi,source_url,authors_json,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,
+        is_primary,is_related,relation_status,source_hash,fetched_at)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.pmid},#{r.pubYear},#{r.journalTitle},#{r.title},#{r.abstractText},#{r.affiliationInfo},
+            #{r.keywordList},#{r.doi},#{r.sourceUrl},#{r.authorsJson},#{r.meshHeadingsJson},#{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},
+            0,#{r.related},'PENDING',#{r.sourceHash},NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        is_related=GREATEST(is_related,VALUES(is_related)),
+        relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+        pub_year=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(pub_year),pub_year),
+        journal_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(journal_title),journal_title),
+        doi=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(doi),doi),
+        title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(title),title),
+        abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
+        source_url=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(source_url),source_url),
+        affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
+        keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
+        authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
+        mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+        grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
+        cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+        raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
+        source_hash=VALUES(source_hash)
+    </insert>
+    <insert id="upsertGenBaseRelated">
+        INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
+        openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
+        grants_json,cncb_banks_json,openlb_raw_payload,is_primary,is_related,relation_status,source_hash,fetched_at)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (NULL,#{r.pmid},#{r.doi},COALESCE(#{r.title},CONCAT('PMID
+            ',#{r.pmid})),#{r.pubYear},#{r.journalTitle},#{r.sourceUrl},CAST(#{r.rawPayload} AS JSON),
+            'SUCCESS',#{r.abstractText},#{r.affiliationInfo},#{r.keywordList},#{r.authorsJson},#{r.meshHeadingsJson},
+            #{r.grantsJson},#{r.cncbBanksJson},#{r.rawPayload},0,#{r.related},'PENDING',#{r.sourceHash},NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+        is_related=GREATEST(is_related,VALUES(is_related)),
+        relation_status=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),'PENDING',relation_status),
+        paper_title=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(paper_title),paper_title),
+        abstract_text=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(abstract_text),abstract_text),
+        affiliation_info=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(affiliation_info),affiliation_info),
+        keyword_list=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(keyword_list),keyword_list),
+        authors_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(authors_json),authors_json),
+        mesh_headings_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(mesh_headings_json),mesh_headings_json),
+        grants_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(grants_json),grants_json),
+        cncb_banks_json=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(cncb_banks_json),cncb_banks_json),
+        openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
+        source_hash=VALUES(source_hash)
+    </insert>
+    <insert id="upsertRelation">
+        INSERT INTO research_publication_relation(database_code,left_identifier_type,left_identifier,
+        right_identifier_type,right_identifier,relation_type,evidence_url,discovery_depth,active,last_seen_run_id,last_seen_time)
+        VALUES(#{databaseCode},#{leftType},#{leftValue},#{rightType},#{rightValue},'RELATED_PUBLICATION',#{evidenceUrl},#{depth},1,#{jobId},NOW())
+        ON DUPLICATE KEY UPDATE active=1,evidence_url=COALESCE(VALUES(evidence_url),evidence_url),
+        discovery_depth=LEAST(discovery_depth,VALUES(discovery_depth)),last_seen_run_id=VALUES(last_seen_run_id),last_seen_time=NOW()
+    </insert>
+    <update id="deactivateUnseenRelations">
+        UPDATE research_publication_relation SET active=0,update_time=NOW()
+        WHERE database_code=#{databaseCode} AND relation_type='RELATED_PUBLICATION'
+        AND ((left_identifier_type=#{identifierType} AND left_identifier=#{identifier})
         OR (right_identifier_type=#{identifierType} AND right_identifier=#{identifier}))
-      AND (last_seen_run_id IS NULL OR last_seen_run_id&lt;&gt;#{jobId})
-  </update>
-  <update id="updatePublicationRelationStatus">
-    <choose>
-      <when test="databaseCode == 'BIOPROJECT'">
-        UPDATE bioproject_publication SET relation_status=#{status},relation_last_error=#{error},relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND bioproject_record_key=#{identifier})
-      </when>
-      <when test="databaseCode == 'GSA'">
-        UPDATE gsa_publication SET relation_status=#{status},relation_last_error=#{error},relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier})
-      </when>
-      <when test="databaseCode != 'GENBASE'">
-        UPDATE ${databaseCode.toLowerCase()}_publication SET relation_status=#{status},relation_last_error=#{error},
-          relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),
-          relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
-        WHERE pmid=#{identifier}
-      </when>
-      <otherwise>
-        UPDATE genbase_publication SET relation_status=#{status},relation_last_error=#{error},
-          relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),
-          relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
-        WHERE (#{identifierType}='PAPER_ID' AND paper_id=CAST(#{identifier} AS UNSIGNED))
-           OR (#{identifierType}='PMID' AND pmid=#{identifier})
-           OR (#{identifierType}='DOI' AND doi=#{identifier})
-      </otherwise>
-    </choose>
-  </update>
-  <update id="incrementJob">
-    UPDATE research_relation_crawl_job SET processed_count=processed_count+#{processed},
-      discovered_count=discovered_count+#{discovered},relation_count=relation_count+#{relations},update_time=NOW()
-    WHERE id=#{jobId}
-  </update>
-  <update id="finishJob">
-    UPDATE research_relation_crawl_job SET status=#{status},last_error=#{error},
-      completed_time=IF(#{status} IN ('SUCCESS','FAILED','STOPPED'),NOW(),NULL),update_time=NOW() WHERE id=#{jobId}
-  </update>
-  <select id="countRelations" resultType="long">
-    SELECT COUNT(*) FROM research_publication_relation
-    WHERE database_code=#{databaseCode} AND active=1 AND relation_type='RELATED_PUBLICATION'
-      AND ((left_identifier_type=#{identifierType} AND left_identifier=#{identifier})
+        AND (last_seen_run_id IS NULL OR last_seen_run_id&lt;&gt;#{jobId})
+    </update>
+    <update id="updatePublicationRelationStatus">
+        <choose>
+            <when test="databaseCode == 'BIOPROJECT'">
+                UPDATE bioproject_publication SET
+                relation_status=#{status},relation_last_error=#{error},relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
+                WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND
+                doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND bioproject_record_key=#{identifier})
+            </when>
+            <when test="databaseCode == 'GSA'">
+                UPDATE gsa_publication SET
+                relation_status=#{status},relation_last_error=#{error},relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
+                WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND
+                doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier})
+            </when>
+            <when test="databaseCode != 'GENBASE'">
+                UPDATE ${databaseCode.toLowerCase()}_publication SET
+                relation_status=#{status},relation_last_error=#{error},
+                relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),
+                relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
+                WHERE pmid=#{identifier}
+            </when>
+            <otherwise>
+                UPDATE genbase_publication SET relation_status=#{status},relation_last_error=#{error},
+                relation_attempt_count=relation_attempt_count+IF(#{status}='RUNNING',1,0),
+                relation_checked_at=IF(#{status}='COMPLETED',NOW(),relation_checked_at),update_time=NOW()
+                WHERE (#{identifierType}='PAPER_ID' AND paper_id=CAST(#{identifier} AS UNSIGNED))
+                OR (#{identifierType}='PMID' AND pmid=#{identifier})
+                OR (#{identifierType}='DOI' AND doi=#{identifier})
+            </otherwise>
+        </choose>
+    </update>
+    <update id="incrementJob">
+        UPDATE research_relation_crawl_job SET processed_count=processed_count+#{processed},
+        discovered_count=discovered_count+#{discovered},relation_count=relation_count+#{relations},update_time=NOW()
+        WHERE id=#{jobId}
+    </update>
+    <update id="finishJob">
+        UPDATE research_relation_crawl_job SET status=#{status},last_error=#{error},
+        completed_time=IF(#{status} IN ('SUCCESS','FAILED','STOPPED'),NOW(),NULL),update_time=NOW() WHERE id=#{jobId}
+    </update>
+    <select id="countRelations" resultType="long">
+        SELECT COUNT(*) FROM research_publication_relation
+        WHERE database_code=#{databaseCode} AND active=1 AND relation_type='RELATED_PUBLICATION'
+        AND ((left_identifier_type=#{identifierType} AND left_identifier=#{identifier})
         OR (right_identifier_type=#{identifierType} AND right_identifier=#{identifier}))
-  </select>
-  <select id="selectRelations" resultType="com.example.bioplatform.research.collection.common.vo.RelatedPublicationView">
-    SELECT r.id relation_id,
-      CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier}
-           THEN r.right_identifier_type ELSE r.left_identifier_type END identifier_type,
-      CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier}
-           THEN r.right_identifier ELSE r.left_identifier END identifier_value,
-      p.pmid,p.doi,p.title,p.pub_year,r.evidence_url,r.discovery_depth,r.active,p.source_url,p.gsa_accessions,p.bioproject_accession,p.cncb_banks_json,'PUBLICATION' record_kind,NULL resource_accession,NULL resource_url
-    FROM research_publication_relation r
-    LEFT JOIN
-    <choose>
-      <when test="databaseCode == 'BIOPROJECT'">(SELECT pmid,doi,title,pub_year,bioproject_record_key gsa_record_key,source_url,NULL gsa_accessions,bioproject_accession,cncb_banks_json FROM bioproject_publication)</when>
-      <when test="databaseCode == 'GSA'">(SELECT pmid,doi,title,pub_year,gsa_record_key,source_url,gsa_accessions,bioproject_accession,cncb_banks_json FROM gsa_publication)</when>
-      <when test="databaseCode != 'GENBASE'">
-        (SELECT pmid,doi,title,pub_year,NULL gsa_record_key,source_url,NULL gsa_accessions,NULL bioproject_accession,cncb_banks_json FROM ${databaseCode.toLowerCase()}_publication)
-      </when>
-      <otherwise>
-        (SELECT pmid,doi,paper_title title,publish_year pub_year,NULL gsa_record_key,source_url,NULL gsa_accessions,bioproject_accession,cncb_banks_json FROM genbase_publication)
-      </otherwise>
-    </choose> p ON ((CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier_type ELSE r.left_identifier_type END='PMID' AND p.pmid=CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier ELSE r.left_identifier END) OR (CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier_type ELSE r.left_identifier_type END='DOI' AND p.doi=CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier ELSE r.left_identifier END) OR (CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier_type ELSE r.left_identifier_type END='SOURCE_KEY' AND p.gsa_record_key=CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier ELSE r.left_identifier END))
-    WHERE r.database_code=#{databaseCode} AND r.active=1 AND r.relation_type='RELATED_PUBLICATION'
-      AND ((r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier})
+    </select>
+    <select id="selectRelations"
+            resultType="com.example.bioplatform.research.collection.common.vo.RelatedPublicationView">
+        SELECT r.id relation_id,
+        CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier}
+        THEN r.right_identifier_type ELSE r.left_identifier_type END identifier_type,
+        CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier}
+        THEN r.right_identifier ELSE r.left_identifier END identifier_value,
+        p.pmid,p.doi,p.title,p.pub_year,r.evidence_url,r.discovery_depth,r.active,p.source_url,p.gsa_accessions,p.bioproject_accession,p.cncb_banks_json,'PUBLICATION'
+        record_kind,NULL resource_accession,NULL resource_url
+        FROM research_publication_relation r
+        LEFT JOIN
+        <choose>
+            <when test="databaseCode == 'BIOPROJECT'">(SELECT pmid,doi,title,pub_year,bioproject_record_key
+                gsa_record_key,source_url,NULL gsa_accessions,bioproject_accession,cncb_banks_json FROM
+                bioproject_publication)
+            </when>
+            <when test="databaseCode == 'GSA'">(SELECT
+                pmid,doi,title,pub_year,gsa_record_key,source_url,gsa_accessions,bioproject_accession,cncb_banks_json
+                FROM gsa_publication)
+            </when>
+            <when test="databaseCode != 'GENBASE'">
+                (SELECT pmid,doi,title,pub_year,NULL gsa_record_key,source_url,NULL gsa_accessions,NULL
+                bioproject_accession,cncb_banks_json FROM ${databaseCode.toLowerCase()}_publication)
+            </when>
+            <otherwise>
+                (SELECT pmid,doi,paper_title title,publish_year pub_year,NULL gsa_record_key,source_url,NULL
+                gsa_accessions,bioproject_accession,cncb_banks_json FROM genbase_publication)
+            </otherwise>
+        </choose>
+        p ON ((CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN
+        r.right_identifier_type ELSE r.left_identifier_type END='PMID' AND p.pmid=CASE WHEN
+        r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN r.right_identifier ELSE
+        r.left_identifier END) OR (CASE WHEN r.left_identifier_type=#{identifierType} AND
+        r.left_identifier=#{identifier} THEN r.right_identifier_type ELSE r.left_identifier_type END='DOI' AND
+        p.doi=CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN
+        r.right_identifier ELSE r.left_identifier END) OR (CASE WHEN r.left_identifier_type=#{identifierType} AND
+        r.left_identifier=#{identifier} THEN r.right_identifier_type ELSE r.left_identifier_type END='SOURCE_KEY' AND
+        p.gsa_record_key=CASE WHEN r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier} THEN
+        r.right_identifier ELSE r.left_identifier END))
+        WHERE r.database_code=#{databaseCode} AND r.active=1 AND r.relation_type='RELATED_PUBLICATION'
+        AND ((r.left_identifier_type=#{identifierType} AND r.left_identifier=#{identifier})
         OR (r.right_identifier_type=#{identifierType} AND r.right_identifier=#{identifier}))
-    ORDER BY r.discovery_depth,r.id LIMIT #{offset},#{size}
-  </select>
-  <update id="updateGsaSourceGrants">UPDATE gsa_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier})</update>
-<update id="updateBioProjectSourceGrants">UPDATE bioproject_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND bioproject_record_key=#{identifier})</update>
+        ORDER BY r.discovery_depth,r.id LIMIT #{offset},#{size}
+    </select>
+    <update id="updateGsaSourceGrants">UPDATE gsa_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE
+        (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR
+        (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier})
+    </update>
+    <update id="updateBioProjectSourceGrants">UPDATE bioproject_publication SET
+        grants_json=#{grantsJson},update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR
+        (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND
+        bioproject_record_key=#{identifier})
+    </update>
 </mapper>

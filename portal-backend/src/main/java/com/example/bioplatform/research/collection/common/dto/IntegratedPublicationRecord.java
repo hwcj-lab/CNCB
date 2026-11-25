@@ -3,7 +3,9 @@ package com.example.bioplatform.research.collection.common.dto;
 
 import lombok.Data;
 
-/** 已全局去重的整合文献；快照生成直接读取此对象，不在快照流程中重写整合表。 */
+/**
+ * 已全局去重的整合文献；快照生成直接读取此对象，不在快照流程中重写整合表。
+ */
 @Data
 public class IntegratedPublicationRecord {
     private Long id;
@@ -24,7 +26,9 @@ public class IntegratedPublicationRecord {
     private String grantsJson;
     private String keywordList;
     private String meshHeadingsJson;
-    /** 整合来源后保留的CNCB资源关联数组。 */
+    /**
+     * 整合来源后保留的CNCB资源关联数组。
+     */
     private String cncbBanksJson;
     private Boolean hasPrimarySource;
 }

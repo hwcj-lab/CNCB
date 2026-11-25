@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.genbase.service.impl;
+
 import com.example.bioplatform.research.common.GrantPayloads;
 import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
 import com.example.bioplatform.research.collection.genbase.dto.GenBaseCollectionStartRequest;
@@ -48,7 +49,7 @@ import java.util.regex.Pattern;
  * <p>
  * 每页只进行一次HTTP请求和一次批量INSERT，随后在同一事务推进持久化断点。
  * 当前按官方列表做完整扫描，唯一索引负责跳过已入库文章。
- *
+ * <p>
  * TODO 增量采集：若官方接口后续提供稳定的发布日期筛选、更新时间或游标，
  * 改为按上次水位增量获取；在此之前不能仅凭列表排序假设增量边界，否则可能漏数。
  */
@@ -74,7 +75,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
     @Value("${app.genbase.endpoint:https://ngdc.cncb.ac.cn/genbase/statistics/getSupportPaperList}")
     private String endpoint;
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public synchronized GenBaseCollectionStatus start(GenBaseCollectionStartRequest request) {
         if (!running.compareAndSet(false, true))
@@ -93,7 +96,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         }
     }
 
-    /** 恢复异常作业，优先续传；没有断点时创建一次新的全量扫描。 */
+    /**
+     * 恢复异常作业，优先续传；没有断点时创建一次新的全量扫描。
+     */
     private long prepareJob(int pageSize) {
         mapper.recoverInterruptedJobs("应用重启后恢复为可续传状态");
         GenBaseJobState resumable = mapper.findResumableJob();
@@ -107,7 +112,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return id;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GenBaseCollectionStatus stop() {
         stopRequested.set(true);
@@ -115,7 +122,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return status();
     }
 
-    /** 保留现有文献，只将GenBase元数据补全状态批量重置；随后由/jobs/start重新执行。 */
+    /**
+     * 保留现有文献，只将GenBase元数据补全状态批量重置；随后由/jobs/start重新执行。
+     */
     @Override
     public synchronized GenBaseCollectionStatus resetEnrichment() {
         if (running.get()) {
@@ -126,7 +135,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return status();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GenBaseCollectionStatus status() {
         GenBaseJobState state = mapper.findLatestJob();
@@ -138,7 +149,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
                 state.attemptCount(), state.lastError(), currentDelayMs.get(), state.startedTime(), state.completedTime());
     }
 
-    /** 逐页运行，停止、成功和最终失败都会写入作业表。 */
+    /**
+     * 逐页运行，停止、成功和最终失败都会写入作业表。
+     */
     private void runJob(GenBaseCollectionStartRequest config) {
         try {
             message = "GenBase采集运行中";
@@ -209,44 +222,54 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         mapper.recoverRunningEnrichment("采集停止，等待下次继续补全");
     }
 
-    /** 已有PMID、DOI或项目号均可补全；失败使用原有任务重试预算，绝不删除原文献。 */
+    /**
+     * 已有PMID、DOI或项目号均可补全；失败使用原有任务重试预算，绝不删除原文献。
+     */
     private EnrichmentResult collectOpenLb(GenBasePmidTask task, GenBaseCollectionStartRequest config) {
-        if(stopRequested.get())return null;
+        if (stopRequested.get()) return null;
         try {
-            var row=metadata.enrich(task,currentDelayMs.get(),stopRequested::get,value->message=value);
+            var row = metadata.enrich(task, currentDelayMs.get(), stopRequested::get, value -> message = value);
             onSuccess(config.minDelayMsOrDefault());
-            return EnrichmentResult.success(task,row);
-        } catch(Exception e) {
-            if(e instanceof InterruptedException)Thread.currentThread().interrupt();
-            if(stopRequested.get())return null;
-            String error=rootMessage(e);
-            if(e instanceof java.net.http.HttpTimeoutException || error.contains("429") || error.contains("HTTP 503"))onThrottle(config,error);
-            return EnrichmentResult.failed(task,error);
+            return EnrichmentResult.success(task, row);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            if (stopRequested.get()) return null;
+            String error = rootMessage(e);
+            if (e instanceof java.net.http.HttpTimeoutException || error.contains("429") || error.contains("HTTP 503"))
+                onThrottle(config, error);
+            return EnrichmentResult.failed(task, error);
         }
     }
 
-    /** 在单一事务内批量回填成功、空结果和失败状态。 */
-    private void persistEnrichment(java.util.List<EnrichmentResult> results,int maxAttempts) {
-        var success=new ArrayList<>(results.stream().filter(r->r.outcome==EnrichmentOutcome.SUCCESS).toList());
-        var failed=new ArrayList<>(results.stream().filter(r->r.outcome==EnrichmentOutcome.FAILED).toList());
-        transactions.executeWithoutResult(tx->{
-            if(!success.isEmpty()) {
-                var live=mapper.lockEnrichment(success.stream().map(r->r.task.getPaperId()).toList()).stream().collect(java.util.stream.Collectors.toMap(GenBasePmidTask::getPaperId,java.util.function.Function.identity()));
-                for(var result:success){
-                    var current=live.get(result.task.getPaperId());if(current==null)throw new IllegalStateException("GenBase补全期间原文献已删除");
-                    result.row.setAuthorsJson(com.example.bioplatform.research.common.ResearchPublicationJsonMerger.mergeAuthors(current.getAuthorsJson(),result.row.getAuthorsJson(),json));
-                    result.row.setGrantsJson(GrantPayloads.merge(current.getGrantsJson(),result.row.getGrantsJson(),json));
-                    result.row.setCncbBanksJson(com.example.bioplatform.research.common.ResearchPublicationJsonMerger.mergeBanks(current.getCncbBanksJson(),result.row.getCncbBanksJson(),json));
+    /**
+     * 在单一事务内批量回填成功、空结果和失败状态。
+     */
+    private void persistEnrichment(java.util.List<EnrichmentResult> results, int maxAttempts) {
+        var success = new ArrayList<>(results.stream().filter(r -> r.outcome == EnrichmentOutcome.SUCCESS).toList());
+        var failed = new ArrayList<>(results.stream().filter(r -> r.outcome == EnrichmentOutcome.FAILED).toList());
+        transactions.executeWithoutResult(tx -> {
+            if (!success.isEmpty()) {
+                var live = mapper.lockEnrichment(success.stream().map(r -> r.task.getPaperId()).toList()).stream().collect(java.util.stream.Collectors.toMap(GenBasePmidTask::getPaperId, java.util.function.Function.identity()));
+                for (var result : success) {
+                    var current = live.get(result.task.getPaperId());
+                    if (current == null) throw new IllegalStateException("GenBase补全期间原文献已删除");
+                    result.row.setAuthorsJson(com.example.bioplatform.research.common.ResearchPublicationJsonMerger.mergeAuthors(current.getAuthorsJson(), result.row.getAuthorsJson(), json));
+                    result.row.setGrantsJson(GrantPayloads.merge(current.getGrantsJson(), result.row.getGrantsJson(), json));
+                    result.row.setCncbBanksJson(com.example.bioplatform.research.common.ResearchPublicationJsonMerger.mergeBanks(current.getCncbBanksJson(), result.row.getCncbBanksJson(), json));
                 }
-                if(!success.isEmpty())mapper.updateEnrichmentSuccess(success.stream().map(EnrichmentResult::row).toList());
+                if (!success.isEmpty())
+                    mapper.updateEnrichmentSuccess(success.stream().map(EnrichmentResult::row).toList());
             }
-            if(!success.isEmpty()) publicationIntegration.syncGenBasePaperIds(success.stream().map(r -> r.task.getPaperId()).toList());
-            if(!failed.isEmpty()) mapper.markEnrichmentFailedOrPending(failed.stream()
-                    .map(r->new GenBaseCollectionMapper.EnrichmentFailure(r.task.getPaperId(),abbreviate(r.error,1000))).toList(),maxAttempts);
+            if (!success.isEmpty())
+                publicationIntegration.syncGenBasePaperIds(success.stream().map(r -> r.task.getPaperId()).toList());
+            if (!failed.isEmpty()) mapper.markEnrichmentFailedOrPending(failed.stream()
+                    .map(r -> new GenBaseCollectionMapper.EnrichmentFailure(r.task.getPaperId(), abbreviate(r.error, 1000))).toList(), maxAttempts);
         });
     }
 
-    /** 当前页带有限次数重试；失败时断点不前移。 */
+    /**
+     * 当前页带有限次数重试；失败时断点不前移。
+     */
     private Page fetchWithRetry(int start, GenBaseCollectionStartRequest config) throws Exception {
         Exception last = null;
         for (int attempt = 1; attempt <= config.maxAttemptsOrDefault() && !stopRequested.get(); attempt++) {
@@ -264,7 +287,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         throw last == null ? new IOException("GenBase当前页请求失败") : last;
     }
 
-    /** 请求DataTables分页接口；只需要draw、start和length三个参数。 */
+    /**
+     * 请求DataTables分页接口；只需要draw、start和length三个参数。
+     */
     private Page fetchPage(int start, int length) throws Exception {
         String url = endpoint + "?draw=1&start=" + start + "&length=" + length;
         HttpRequest request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(45))
@@ -281,13 +306,20 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return new Page(root.path("recordsTotal").asInt(root.path("recordsFiltered").asInt()), root.path("data"));
     }
 
-    /** 将一页JSON转换为批量写入行；缺失paperId或标题的异常记录不入库。 */
+    /**
+     * 将一页JSON转换为批量写入行；缺失paperId或标题的异常记录不入库。
+     */
     private ArrayList<GenBasePublicationWriteRow> toRows(JsonNode data) {
         var rows = new ArrayList<GenBasePublicationWriteRow>();
         for (JsonNode node : data) {
-            if (!node.path("paperId").canConvertToLong() || blankToNull(node.path("paperTitle").asText(null)) == null) continue;
+            if (!node.path("paperId").canConvertToLong() || blankToNull(node.path("paperTitle").asText(null)) == null)
+                continue;
             String raw;
-            try { raw = json.writeValueAsString(node); } catch (Exception e) { continue; }
+            try {
+                raw = json.writeValueAsString(node);
+            } catch (Exception e) {
+                continue;
+            }
             String publishTime = blankToNull(node.path("publishTime").asText(null));
             // 上游接口字段名仍为 accessionRange；入库后统一使用 genbase_accessions。
             String genbaseAccessions = blankToNull(node.path("accessionRange").asText(null));
@@ -300,7 +332,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return rows;
     }
 
-    /** 限流后指数降低速度；达到阈值时安全停止。 */
+    /**
+     * 限流后指数降低速度；达到阈值时安全停止。
+     */
     private void onThrottle(GenBaseCollectionStartRequest config, String reason) {
         long delay = currentDelayMs.updateAndGet(value -> Math.min(10_000L, Math.max(config.minDelayMsOrDefault(), value * 2)));
         int count = consecutiveThrottles.incrementAndGet();
@@ -311,40 +345,97 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         }
     }
 
-    /** 成功后清零连续失败，并缓慢恢复请求速度。 */
+    /**
+     * 成功后清零连续失败，并缓慢恢复请求速度。
+     */
     private void onSuccess(long baseDelay) {
         consecutiveThrottles.set(0);
         currentDelayMs.updateAndGet(value -> Math.max(baseDelay, value - 50));
     }
 
-    private static String numericOrNull(String value) { value = blankToNull(value); return value != null && value.matches("\\d+") ? value : null; }
-
-    /** 生成来源记录SHA-256，用于批量扫描时区分无变化记录和需要重新关联的变化记录。 */
-    private static String sha256(String value) {
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
-        catch (Exception e) { throw new IllegalStateException("无法计算GenBase来源摘要", e); }
+    private static String numericOrNull(String value) {
+        value = blankToNull(value);
+        return value != null && value.matches("\\d+") ? value : null;
     }
+
+    /**
+     * 生成来源记录SHA-256，用于批量扫描时区分无变化记录和需要重新关联的变化记录。
+     */
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("无法计算GenBase来源摘要", e);
+        }
+    }
+
     private static String normalizeDoi(String value) {
         value = blankToNull(value);
         if (value == null) return null;
         return value.replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/", "").replaceFirst("(?i)^doi:\\s*", "").trim().toLowerCase(Locale.ROOT);
     }
-    private static String blankToNull(String value) { return value == null || value.isBlank() || "null".equalsIgnoreCase(value.trim()) ? null : value.trim(); }
-    private static Integer year(String value) { if (value == null) return null; var m=YEAR.matcher(value); if(!m.find())return null; int y=Integer.parseInt(m.group(1)); return y>=1500&&y<=2200?y:null; }
-    private static void sleep(long millis) throws InterruptedException { Thread.sleep(millis); }
-    private static String abbreviate(String value, int max) { return value == null ? null : value.substring(0, Math.min(value.length(), max)); }
-    private static String rootMessage(Throwable e) { while (e.getCause()!=null) e=e.getCause(); return e.getMessage()==null?e.getClass().getSimpleName():e.getMessage(); }
-    private static Thread daemon(Runnable r, String name) { var t=new Thread(r,name); t.setDaemon(true); return t; }
 
-    private record Page(int recordsTotal, JsonNode data) {}
-    private enum EnrichmentOutcome { SUCCESS, FAILED }
-    private record EnrichmentResult(GenBasePmidTask task,EnrichmentOutcome outcome,GenBaseOpenLbWriteRow row,String error) {
-        static EnrichmentResult success(GenBasePmidTask task,GenBaseOpenLbWriteRow row){return new EnrichmentResult(task,EnrichmentOutcome.SUCCESS,row,null);}
-        static EnrichmentResult failed(GenBasePmidTask task,String error){return new EnrichmentResult(task,EnrichmentOutcome.FAILED,null,error);}
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() || "null".equalsIgnoreCase(value.trim()) ? null : value.trim();
     }
-    private static class ThrottledException extends IOException { private ThrottledException(String message) { super(message); } }
 
-    /** Spring关闭时请求停止并关闭后台执行器。 */
-    @PreDestroy void shutdown() { stopRequested.set(true); executor.shutdownNow(); enrichmentExecutor.shutdownNow(); }
+    private static Integer year(String value) {
+        if (value == null) return null;
+        var m = YEAR.matcher(value);
+        if (!m.find()) return null;
+        int y = Integer.parseInt(m.group(1));
+        return y >= 1500 && y <= 2200 ? y : null;
+    }
+
+    private static void sleep(long millis) throws InterruptedException {
+        Thread.sleep(millis);
+    }
+
+    private static String abbreviate(String value, int max) {
+        return value == null ? null : value.substring(0, Math.min(value.length(), max));
+    }
+
+    private static String rootMessage(Throwable e) {
+        while (e.getCause() != null) e = e.getCause();
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    private static Thread daemon(Runnable r, String name) {
+        var t = new Thread(r, name);
+        t.setDaemon(true);
+        return t;
+    }
+
+    private record Page(int recordsTotal, JsonNode data) {
+    }
+
+    private enum EnrichmentOutcome {SUCCESS, FAILED}
+
+    private record EnrichmentResult(GenBasePmidTask task, EnrichmentOutcome outcome, GenBaseOpenLbWriteRow row,
+                                    String error) {
+        static EnrichmentResult success(GenBasePmidTask task, GenBaseOpenLbWriteRow row) {
+            return new EnrichmentResult(task, EnrichmentOutcome.SUCCESS, row, null);
+        }
+
+        static EnrichmentResult failed(GenBasePmidTask task, String error) {
+            return new EnrichmentResult(task, EnrichmentOutcome.FAILED, null, error);
+        }
+    }
+
+    private static class ThrottledException extends IOException {
+        private ThrottledException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Spring关闭时请求停止并关闭后台执行器。
+     */
+    @PreDestroy
+    void shutdown() {
+        stopRequested.set(true);
+        executor.shutdownNow();
+        enrichmentExecutor.shutdownNow();
+    }
 }
 

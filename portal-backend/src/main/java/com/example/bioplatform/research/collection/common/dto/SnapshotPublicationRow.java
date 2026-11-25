@@ -4,7 +4,9 @@ package com.example.bioplatform.research.collection.common.dto;
 import lombok.Builder;
 import lombok.Data;
 
-/** 批量写入全局去重文献主表的数据。 */
+/**
+ * 批量写入全局去重文献主表的数据。
+ */
 @Data
 @Builder
 public class SnapshotPublicationRow {
@@ -25,7 +27,9 @@ public class SnapshotPublicationRow {
     private String grantsJson;
     private String keywordList;
     private String meshHeadingsJson;
-    /** 整合来源后保留的CNCB资源关联数组。 */
+    /**
+     * 整合来源后保留的CNCB资源关联数组。
+     */
     private String cncbBanksJson;
     private Boolean hasPrimarySource;
 }

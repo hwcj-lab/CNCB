@@ -12,9 +12,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** 合并跨来源文献JSON时按业务对象补充信息，避免用“较长字符串”覆盖有用字段。 */
+/**
+ * 合并跨来源文献JSON时按业务对象补充信息，避免用“较长字符串”覆盖有用字段。
+ */
 public final class ResearchPublicationJsonMerger {
-    private ResearchPublicationJsonMerger() { }
+    private ResearchPublicationJsonMerger() {
+    }
 
     /**
      * 按作者标识或姓名合并作者数组；相同作者从另一来源得到的署名机构会补入，
@@ -38,7 +41,9 @@ public final class ResearchPublicationJsonMerger {
         }
     }
 
-    /** 合并资源关联JSON数组，按数据库、资源编号、关联 PMID 去重。 */
+    /**
+     * 合并资源关联JSON数组，按数据库、资源编号、关联 PMID 去重。
+     */
     public static String mergeBanks(String left, String right, ObjectMapper mapper) {
         if (blank(left)) return right;
         if (blank(right)) return left;
@@ -132,17 +137,21 @@ public final class ResearchPublicationJsonMerger {
         return normalize(direct);
     }
 
-    /** 将可识别机构纳入作者身份，避免同名但不同机构的作者被合成一人。 */
+    /**
+     * 将可识别机构纳入作者身份，避免同名但不同机构的作者被合成一人。
+     */
     private static String institutionIdentity(ObjectNode author) {
         String institution = first(author, "institutionName");
-        if (institution.isEmpty()) institution = first(author, "affiliation", "institution", "organization", "affiliationRaw");
+        if (institution.isEmpty())
+            institution = first(author, "affiliation", "institution", "organization", "affiliationRaw");
         return normalize(institution);
     }
 
     private static String first(ObjectNode node, String... names) {
         for (String name : names) {
             JsonNode value = node.get(name);
-            if (value != null && value.isValueNode() && !value.isNull() && !blank(value.asText())) return value.asText().trim();
+            if (value != null && value.isValueNode() && !value.isNull() && !blank(value.asText()))
+                return value.asText().trim();
         }
         return "";
     }
@@ -167,5 +176,7 @@ public final class ResearchPublicationJsonMerger {
         return right == null || right.length() <= left.length() ? left : right;
     }
 
-    private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
+    }
 }

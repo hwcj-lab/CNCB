@@ -3,7 +3,9 @@ package com.example.bioplatform.research.collection.genbase.vo;
 
 import java.time.LocalDateTime;
 
-/** GenBase最近一次采集作业及当前进程运行状态。 */
+/**
+ * GenBase最近一次采集作业及当前进程运行状态。
+ */
 public record GenBaseCollectionStatus(
         boolean running,
         boolean stopRequested,
@@ -20,5 +22,6 @@ public record GenBaseCollectionStatus(
         long currentDelayMs,
         LocalDateTime startedTime,
         LocalDateTime completedTime
-) {}
+) {
+}
 

@@ -1,4 +1,5 @@
 package com.example.bioplatform.research.collection.common.controller;
+
 import com.example.bioplatform.research.collection.common.dto.PendingRelationBatchRequest;
 import com.example.bioplatform.research.collection.common.dto.PublicationRelationCollectionRequest;
 import com.example.bioplatform.research.collection.common.service.PublicationRelationCollectionService;
@@ -14,7 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
-/** 人工控制的单文献刷新和递归关联采集接口；不会自动运行全量任务。 */
+/**
+ * 人工控制的单文献刷新和递归关联采集接口；不会自动运行全量任务。
+ */
 @RestController
 @RequestMapping("/api/collection/publication-relations")
 @RequiredArgsConstructor
@@ -38,11 +41,15 @@ public class PublicationRelationCollectionController {
 
     @PostMapping("/jobs/{jobId}/resume")
     @Operation(summary = "继续暂停、停止或失败的关联采集作业")
-    public ApiResponse<PublicationRelationJobStatus> resume(@PathVariable long jobId) { return ApiResponse.ok(service.resume(jobId)); }
+    public ApiResponse<PublicationRelationJobStatus> resume(@PathVariable long jobId) {
+        return ApiResponse.ok(service.resume(jobId));
+    }
 
     @PostMapping("/jobs/stop")
     @Operation(summary = "安全停止当前关联采集作业")
-    public ApiResponse<PublicationRelationJobStatus> stop() { return ApiResponse.ok(service.stop()); }
+    public ApiResponse<PublicationRelationJobStatus> stop() {
+        return ApiResponse.ok(service.stop());
+    }
 
     @GetMapping("/jobs/status")
     @Operation(summary = "查询关联采集作业状态")
@@ -50,12 +57,14 @@ public class PublicationRelationCollectionController {
         return ApiResponse.ok(service.status(jobId));
     }
 
-    /** 查询参数形式支持含斜杠的DOI，避免URL路径编码限制；与路径形式共用查询服务。 */
+    /**
+     * 查询参数形式支持含斜杠的DOI，避免URL路径编码限制；与路径形式共用查询服务。
+     */
     @GetMapping("/publications")
     public ApiResponse<RelatedPublicationPage> relatedByQuery(
-            @RequestParam String databaseCode,@RequestParam String identifierType,@RequestParam String identifier,
-            @RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int size) {
-        return ApiResponse.ok(service.relatedPublications(databaseCode,identifierType,identifier,page,size));
+            @RequestParam String databaseCode, @RequestParam String identifierType, @RequestParam String identifier,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(service.relatedPublications(databaseCode, identifierType, identifier, page, size));
     }
 
     @GetMapping("/publications/{databaseCode}/{identifierType}/{identifier}")

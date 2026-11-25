@@ -3,7 +3,9 @@ package com.example.bioplatform.research.collection.common.vo;
 
 import java.time.LocalDateTime;
 
-/** 关联文献递归采集作业状态。 */
+/**
+ * 关联文献递归采集作业状态。
+ */
 public record PublicationRelationJobStatus(
         boolean processRunning,
         boolean stopRequested,
@@ -21,4 +23,5 @@ public record PublicationRelationJobStatus(
         String lastError,
         LocalDateTime startedTime,
         LocalDateTime completedTime
-) {}
+) {
+}

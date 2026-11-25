@@ -16,8 +16,19 @@ public record PendingRelationBatchRequest(
         @Min(1) @Max(100000) Integer maxPublications,
         @Min(100) @Max(60000) Long requestDelayMs
 ) {
-    public int batchSizeOrDefault() { return batchSize == null ? 500 : batchSize; }
-    public boolean includeFailedOrDefault() { return Boolean.TRUE.equals(includeFailed); }
-    public int maxPublicationsOrDefault() { return maxPublications == null ? 1000 : maxPublications; }
-    public long requestDelayMsOrDefault() { return requestDelayMs == null ? 800L : requestDelayMs; }
+    public int batchSizeOrDefault() {
+        return batchSize == null ? 500 : batchSize;
+    }
+
+    public boolean includeFailedOrDefault() {
+        return Boolean.TRUE.equals(includeFailed);
+    }
+
+    public int maxPublicationsOrDefault() {
+        return maxPublications == null ? 1000 : maxPublications;
+    }
+
+    public long requestDelayMsOrDefault() {
+        return requestDelayMs == null ? 800L : requestDelayMs;
+    }
 }

@@ -41,7 +41,8 @@ public class CncbBanksDiscoveryStrategy implements RelationDiscoveryStrategy {
             var resolver = resolvers.find(link.databaseName());
             List<String> found;
             if (resolver != null) {
-                var data = resolver.findRelatedPublications(link.accession(), link.url());
+                var data = RelationRunCache.resource(resolver.getClass().getName() + ":" + link.accession() + ":" + link.url(),
+                        () -> resolver.findRelatedPublications(link.accession(), link.url()));
                 found = data.pmids();
                 if (input.acceptsPublicationReferences()) for (JsonNode reference : data.publicationRecords()) {
                     if (com.example.bioplatform.research.common.PublicationValues.text(reference, "pubmedId").matches("[1-9][0-9]{5,11}"))

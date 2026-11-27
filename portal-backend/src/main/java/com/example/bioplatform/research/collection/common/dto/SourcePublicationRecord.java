@@ -12,11 +12,13 @@ public class SourcePublicationRecord {
      * 来源表自增主键，仅用作游标分页，不作为业务穿透键。
      */
     private Long sourceRowId;
+    private java.time.LocalDateTime sourceUpdatedTime;
     private String sourceCode;
     private String sourceRecordKey;
     private String recordKind = "PUBLICATION";
     private String resourceAccession;
     private String resourceUrl;
+    private String sourceUrl;
     private Boolean recordActive = true;
     private String pmid;
     private String doi;

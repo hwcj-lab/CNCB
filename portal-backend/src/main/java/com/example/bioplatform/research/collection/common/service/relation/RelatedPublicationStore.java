@@ -24,8 +24,11 @@ public class RelatedPublicationStore {
     private final ResearchPublicationIntegrationService publicationIntegration;
     private final ObjectMapper json;
     private final List<RelatedPublicationWriter> writers;
+    private final com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes;
+    private final com.example.bioplatform.research.collection.common.service.SourceMembership membership;
 
-    public RelatedPublicationStore(ResearchPublicationSourceRegistry sources, ResearchPublicationIntegrationService integration, ObjectMapper json, List<RelatedPublicationWriter> writers) {
+    public RelatedPublicationStore(ResearchPublicationSourceRegistry sources, ResearchPublicationIntegrationService integration, ObjectMapper json, List<RelatedPublicationWriter> writers, com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes, com.example.bioplatform.research.collection.common.service.SourceMembership membership) {
+        this.routes=routes;this.membership=membership;
         this.sourceRegistry = sources;
         this.publicationIntegration = integration;
         this.json = json;
@@ -48,6 +51,10 @@ public class RelatedPublicationStore {
             merged.add(new RelatedPublicationWriteRow(row.pmid(), row.doi(), row.pubYear(), row.journalTitle(), row.title(), row.abstractText(), row.affiliationInfo(), row.keywordList(), authors, row.meshHeadingsJson(), grants, banks, row.rawPayload(), row.sourceUrl(), sha256(row.sourceHash() + authors + grants + banks), row.related()));
         }
         writers.stream().filter(writer -> writer.supports(databaseCode)).findFirst().orElseThrow(() -> new IllegalArgumentException("未配置来源写入器：" + databaseCode)).write(databaseCode, merged);
+        Map<String,String> bankRoutes=new HashMap<>();
+        for(var route:routes.routes())bankRoutes.put(route.get("bank_db").toString().trim().toLowerCase(Locale.ROOT),route.get("source_code").toString());
+        var owned=merged.stream().filter(row->membership.belongs(databaseCode,row.cncbBanksJson(),bankRoutes)).toList();
+        if(!owned.isEmpty())routes.promotePrimary(com.example.bioplatform.research.collection.openlb.service.impl.OpenLbRoutingService.table(databaseCode),owned.stream().map(RelatedPublicationWriteRow::pmid).filter(Objects::nonNull).toList(),owned.stream().map(RelatedPublicationWriteRow::doi).filter(Objects::nonNull).toList());
         publicationIntegration.syncIdentifiers(rows.stream().map(RelatedPublicationWriteRow::pmid).filter(Objects::nonNull).toList(),
                 rows.stream().map(RelatedPublicationWriteRow::doi).filter(Objects::nonNull).toList());
     }

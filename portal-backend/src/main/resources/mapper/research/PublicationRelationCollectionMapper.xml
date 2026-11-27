@@ -88,7 +88,7 @@
     </update>
     <select id="findNextPending" resultType="com.example.bioplatform.research.collection.common.dto.RelationQueueNode">
         SELECT id,job_id,identifier_type,identifier_value,depth FROM research_relation_crawl_queue
-        WHERE job_id=#{jobId} AND status='PENDING' ORDER BY depth,id LIMIT 1
+        WHERE job_id=#{jobId} AND status='PENDING' AND depth=0 ORDER BY id LIMIT 1
     </select>
     <update id="markQueueRunning">UPDATE research_relation_crawl_queue SET
         status='RUNNING',attempt_count=attempt_count+1,update_time=NOW() WHERE id=#{id} AND status='PENDING'
@@ -314,5 +314,18 @@
         grants_json=#{grantsJson},update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR
         (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND
         bioproject_record_key=#{identifier})
+    </update>
+
+    <update id="retryFailedQueue">
+        UPDATE research_relation_crawl_queue SET status='PENDING',last_error=NULL,update_time=NOW()
+        WHERE job_id=#{jobId} AND status='FAILED'
+    </update>
+    <insert id="insertTerminalQueue">
+        INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
+        VALUES(#{jobId},#{identifierType},#{identifier},#{depth},'SUCCESS')
+    </insert>
+    <update id="finishDescendantQueue">
+        UPDATE research_relation_crawl_queue SET status='SUCCESS',last_error=NULL,update_time=NOW()
+        WHERE job_id=#{jobId} AND depth&gt;0 AND status IN ('PENDING','RUNNING','FAILED')
     </update>
 </mapper>

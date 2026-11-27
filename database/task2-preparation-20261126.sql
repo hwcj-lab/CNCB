@@ -1,0 +1,161 @@
+-- Three independent stages: collection -> preparation -> snapshots. No historical backfill.
+CREATE TABLE IF NOT EXISTS research_preparation_job (
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '整理任务ID，同时作为本次整理修订号',
+ status VARCHAR(20) NOT NULL COMMENT '任务状态：RUNNING运行、SUCCESS成功、STOPPED停止、FAILED失败等',
+ scan_mode VARCHAR(20) NOT NULL DEFAULT 'FULL' COMMENT '扫描方式：FULL全量扫描，INCREMENTAL增量扫描；强制重解析另看rebuild',
+ after_update_time DATETIME(6) NULL COMMENT '当前来源已提交批次的更新时间游标；全量模式为空',
+ source_codes_json TEXT NOT NULL COMMENT '本次整理的数据库编码有序列表，JSON数组',
+ source_index INT NOT NULL DEFAULT 0 COMMENT '当前处理来源在source_codes_json中的下标，从0开始',
+ after_id BIGINT NOT NULL DEFAULT 0 COMMENT '当前来源已提交的扫描ID游标，不表示已处理条数',
+ batch_size INT NOT NULL DEFAULT 200 COMMENT '每批最多读取的来源记录数',
+ rows_scanned BIGINT NOT NULL DEFAULT 0 COMMENT '本次任务累计扫描的来源记录数，非作者展开条数',
+ rows_changed BIGINT NOT NULL DEFAULT 0 COMMENT '本次任务累计新增或变更的来源记录数，非维度成员条数',
+ rebuild BOOLEAN NOT NULL DEFAULT 0 COMMENT '是否强制重新解析：1是，0可复用未变化结果',
+ all_sources BOOLEAN NOT NULL DEFAULT 1 COMMENT '是否选择全部已注册来源：1是，0指定来源',
+ error_message VARCHAR(2000) COMMENT '任务失败或中断的错误说明',
+ started_time DATETIME NOT NULL COMMENT '本次任务开始时间',
+ completed_time DATETIME COMMENT '任务结束时间；未结束为空',
+ running_slot INT GENERATED ALWAYS AS (CASE WHEN status='RUNNING' THEN 1 ELSE NULL END) STORED COMMENT '自动生成的运行槽；RUNNING为1，其余为空；唯一索引限制同时仅一个整理任务',
+ UNIQUE KEY uk_preparation_running(running_slot)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据整理任务；保存任务状态、来源列表、扫描进度和断点';
+CREATE TABLE IF NOT EXISTS research_prepared_document (
+ source_row_id BIGINT NULL COMMENT '来源适配器提供的扫描行ID；可能编码资源/文献类型，不一定等于原表物理ID',
+ id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT '整理记录版本ID；各维度表document_id逻辑引用此字段',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；相同文献可在不同来源分别保留',
+ source_key VARCHAR(1000) NOT NULL COMMENT '来源内业务唯一键，用于定位原始记录',
+ source_hash CHAR(64) CHARACTER SET ascii NOT NULL COMMENT 'source_key的SHA-256摘要；与source_code组合定位来源记录',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '文献去重候选键：P为PMID，D为DOI摘要，S为来源业务键摘要；快照还应用identity桥接',
+ pmid VARCHAR(32) COMMENT 'PubMed编号；来源未提供时为空，不通过标题猜补',
+ doi VARCHAR(500) COMMENT '规范化DOI；未提供时为空',
+ title TEXT COMMENT '文献或资源标题',
+ journal_title VARCHAR(1000) COMMENT '期刊名称；无期刊或纯资源记录可为空',
+ pub_year INT COMMENT '来源记录发表年份；未提供时为空',
+ source_url TEXT COMMENT '来源跳转地址；无PMID或DOI时也可用于访问原始资源',
+ record_kind VARCHAR(20) NOT NULL COMMENT '记录类型：PUBLICATION文献，RESOURCE无文献资源',
+ resource_accession VARCHAR(255) COMMENT '原始资源编号；非资源记录可为空',
+ gsa_accessions TEXT COMMENT '来源保留的GSA等归档编号信息',
+ bioproject_accession VARCHAR(255) COMMENT '来源保留的BioProject项目编号信息',
+ primary_flag BOOLEAN NOT NULL COMMENT '相对source_code的归属：1本库记录，0仅作为外部关联记录收录',
+ content_hash CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '基本信息及解析成员结果的内容摘要；用于判断是否需要生成新版本',
+ seen_run BIGINT NOT NULL COMMENT '最近一次扫描确认该记录存在的整理任务ID；全量扫描据此识别失效记录',
+ valid_from BIGINT NOT NULL COMMENT '记录版本生效的整理修订号，包含此修订',
+ valid_until BIGINT NULL COMMENT '记录版本失效的整理修订号，不包含此修订；空表示当前有效版本',
+ active_source_hash CHAR(64) CHARACTER SET ascii GENERATED ALWAYS AS (CASE WHEN valid_until IS NULL THEN source_hash ELSE NULL END) STORED COMMENT '自动生成；当前有效版本取source_hash，历史版本为空；约束来源内仅一个当前版本',
+ UNIQUE KEY uk_prepared_active(source_code,active_source_hash),
+ UNIQUE KEY uk_prepared_version(source_code,source_hash,valid_from),
+ KEY ix_prepared_source_row(source_code,source_row_id,valid_until),
+ KEY ix_prepared_version(valid_from,valid_until),
+ KEY ix_prepared_scope(source_code,primary_flag,record_kind,document_key),
+ KEY ix_prepared_document(document_key),
+ KEY ix_prepared_doi(doi)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='整理后的来源文献或资源基本信息；按来源保留并记录历史版本，不保存完整原始JSON';
+CREATE TABLE IF NOT EXISTS research_prepared_identity (
+ revision BIGINT NOT NULL COMMENT '所属成功整理修订号，对应research_preparation_job.id',
+ doi VARCHAR(500) NOT NULL COMMENT '规范化DOI；与revision组成主键',
+ pmid VARCHAR(32) COMMENT '该DOI明确无歧义对应的PMID；无法唯一确定或没有PMID时为空',
+ PRIMARY KEY(revision,doi)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='按整理修订冻结的DOI到PMID桥接；用于总统计跨来源文献去重';
+CREATE TABLE IF NOT EXISTS research_prepared_author (
+ document_id BIGINT NOT NULL COMMENT '来源文献或资源的整理版本ID，逻辑引用research_prepared_document.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；同一文献不同来源分别保留',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '从document复制的文献去重候选键；全局去重时还应用identity桥接',
+ pmid VARCHAR(32) COMMENT '从document复制的PubMed编号，可为空',
+ doi VARCHAR(500) COMMENT '从document复制的规范化DOI，可为空',
+ source_url TEXT COMMENT '从document复制的原始跳转地址',
+ member_key CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '作者加机构规范化值的SHA-256摘要；与document_id组成主键，限制同篇同成员仅一条',
+ display_name VARCHAR(1000) NOT NULL COMMENT '作者姓名与机构拼接的展示文本；未知机构时仅姓名',
+ author_name VARCHAR(500) COMMENT '解析后的作者姓名，不作为跨文献作者唯一标识',
+ institution_name VARCHAR(1000) COMMENT '该作者对应的一个机构；未知可为空，多机构展开为多条',
+ author_order INT COMMENT '作者解析后的署名序号，从1开始；同作者多机构展开保留相同序号',
+ stat_year INT COMMENT '年份统计值；当前该维度不赋值，文献发表年份见document.pub_year',
+ PRIMARY KEY(document_id,member_key),
+ KEY ix_prepared_author_rank(member_key,document_key,source_code),
+ KEY ix_prepared_author_source(source_code,member_key,document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文献与作者加机构成员关系；所有数据库共用，按来源与文献版本分别去重';
+CREATE TABLE IF NOT EXISTS research_prepared_institution (
+ document_id BIGINT NOT NULL COMMENT '来源文献或资源的整理版本ID，逻辑引用research_prepared_document.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；同一文献不同来源分别保留',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '从document复制的文献去重候选键；全局去重时还应用identity桥接',
+ pmid VARCHAR(32) COMMENT '从document复制的PubMed编号，可为空',
+ doi VARCHAR(500) COMMENT '从document复制的规范化DOI，可为空',
+ source_url TEXT COMMENT '从document复制的原始跳转地址',
+ member_key CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '机构规范化值的SHA-256摘要；与document_id组成主键，限制同篇同成员仅一条',
+ display_name VARCHAR(1000) NOT NULL COMMENT '机构的展示文本',
+ author_name VARCHAR(500) COMMENT '作者姓名；当前该维度不赋值，保留通用成员结构',
+ institution_name VARCHAR(1000) COMMENT '作者所属机构；当前该维度不赋值，机构维度名称存display_name',
+ author_order INT COMMENT '作者解析后的署名序号；当前该维度不赋值，非排名',
+ stat_year INT COMMENT '年份统计值；当前该维度不赋值，文献发表年份见document.pub_year',
+ PRIMARY KEY(document_id,member_key),
+ KEY ix_prepared_institution_rank(member_key,document_key,source_code),
+ KEY ix_prepared_institution_source(source_code,member_key,document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文献与机构成员关系；所有数据库共用，按来源与文献版本分别去重';
+CREATE TABLE IF NOT EXISTS research_prepared_fund (
+ document_id BIGINT NOT NULL COMMENT '来源文献或资源的整理版本ID，逻辑引用research_prepared_document.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；同一文献不同来源分别保留',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '从document复制的文献去重候选键；全局去重时还应用identity桥接',
+ pmid VARCHAR(32) COMMENT '从document复制的PubMed编号，可为空',
+ doi VARCHAR(500) COMMENT '从document复制的规范化DOI，可为空',
+ source_url TEXT COMMENT '从document复制的原始跳转地址',
+ member_key CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '资助方规范化值的SHA-256摘要；与document_id组成主键，限制同篇同成员仅一条',
+ display_name VARCHAR(1000) NOT NULL COMMENT '资助方的展示文本',
+ author_name VARCHAR(500) COMMENT '作者姓名；当前该维度不赋值，保留通用成员结构',
+ institution_name VARCHAR(1000) COMMENT '作者所属机构；当前该维度不赋值，机构维度名称存display_name',
+ author_order INT COMMENT '作者解析后的署名序号；当前该维度不赋值，非排名',
+ stat_year INT COMMENT '年份统计值；当前该维度不赋值，文献发表年份见document.pub_year',
+ PRIMARY KEY(document_id,member_key),
+ KEY ix_prepared_fund_rank(member_key,document_key,source_code),
+ KEY ix_prepared_fund_source(source_code,member_key,document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文献与资助方成员关系；所有数据库共用，按来源与文献版本分别去重';
+CREATE TABLE IF NOT EXISTS research_prepared_topic (
+ document_id BIGINT NOT NULL COMMENT '来源文献或资源的整理版本ID，逻辑引用research_prepared_document.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；同一文献不同来源分别保留',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '从document复制的文献去重候选键；全局去重时还应用identity桥接',
+ pmid VARCHAR(32) COMMENT '从document复制的PubMed编号，可为空',
+ doi VARCHAR(500) COMMENT '从document复制的规范化DOI，可为空',
+ source_url TEXT COMMENT '从document复制的原始跳转地址',
+ member_key CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '关键词或MeSH主题规范化值的SHA-256摘要；与document_id组成主键，限制同篇同成员仅一条',
+ display_name VARCHAR(1000) NOT NULL COMMENT '关键词或MeSH主题的展示文本',
+ author_name VARCHAR(500) COMMENT '作者姓名；当前该维度不赋值，保留通用成员结构',
+ institution_name VARCHAR(1000) COMMENT '作者所属机构；当前该维度不赋值，机构维度名称存display_name',
+ author_order INT COMMENT '作者解析后的署名序号；当前该维度不赋值，非排名',
+ stat_year INT COMMENT '年份统计值；当前该维度不赋值，文献发表年份见document.pub_year',
+ PRIMARY KEY(document_id,member_key),
+ KEY ix_prepared_topic_rank(member_key,document_key,source_code),
+ KEY ix_prepared_topic_source(source_code,member_key,document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文献与关键词或MeSH主题成员关系；所有数据库共用，按来源与文献版本分别去重';
+CREATE TABLE IF NOT EXISTS research_prepared_year (
+ document_id BIGINT NOT NULL COMMENT '来源文献或资源的整理版本ID，逻辑引用research_prepared_document.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '所属数据库编码；同一文献不同来源分别保留',
+ document_key VARCHAR(80) CHARACTER SET ascii NOT NULL COMMENT '从document复制的文献去重候选键；全局去重时还应用identity桥接',
+ pmid VARCHAR(32) COMMENT '从document复制的PubMed编号，可为空',
+ doi VARCHAR(500) COMMENT '从document复制的规范化DOI，可为空',
+ source_url TEXT COMMENT '从document复制的原始跳转地址',
+ member_key CHAR(64) CHARACTER SET ascii NOT NULL COMMENT '年份规范化值的SHA-256摘要；与document_id组成主键，限制同篇同成员仅一条',
+ display_name VARCHAR(1000) NOT NULL COMMENT '年份的展示文本',
+ author_name VARCHAR(500) COMMENT '作者姓名；当前该维度不赋值，保留通用成员结构',
+ institution_name VARCHAR(1000) COMMENT '作者所属机构；当前该维度不赋值，机构维度名称存display_name',
+ author_order INT COMMENT '作者解析后的署名序号；当前该维度不赋值，非排名',
+ stat_year INT COMMENT '用于年度聚合的有效发表年份；同一文献去重后只计一个年份',
+ PRIMARY KEY(document_id,member_key),
+ KEY ix_prepared_year_rank(member_key,document_key,source_code),
+ KEY ix_prepared_year_source(source_code,member_key,document_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文献与年份成员关系；所有数据库共用，按来源与文献版本分别去重';
+CREATE TABLE IF NOT EXISTS research_prepared_snapshot (
+ snapshot_id BIGINT UNSIGNED NOT NULL PRIMARY KEY COMMENT '统计快照ID，逻辑引用research_stat_snapshot.id',
+ preparation_revision BIGINT NOT NULL COMMENT '快照读取的整理修订号，逻辑引用research_preparation_job.id',
+ source_names_json TEXT NOT NULL COMMENT '快照生成时冻结的数据库编码与显示名称映射，JSON',
+ topic_scopes_json TEXT NOT NULL COMMENT '快照生成时冻结的总统计主题与数据库来源范围映射，JSON',
+ KEY ix_prepared_snapshot_revision(preparation_revision)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='快照输入配置；固定整理修订、来源名称和数据库主题映射，不保存统计结果明细';
+CREATE TABLE IF NOT EXISTS research_preparation_source_cursor (
+ job_id BIGINT NOT NULL COMMENT '所属整理任务ID，逻辑引用research_preparation_job.id',
+ source_code VARCHAR(40) NOT NULL COMMENT '本条游标对应的数据库编码',
+ scan_mode VARCHAR(20) NOT NULL COMMENT '该来源实际扫描方式：FULL或INCREMENTAL；无增量基线时可回退FULL',
+ status VARCHAR(20) NOT NULL COMMENT '该来源处理状态：PENDING待处理、RUNNING处理中、COMPLETE已完成',
+ from_time DATETIME(6) NULL COMMENT '增量扫描包含的时间下界，已包含重叠窗口；全量模式为空',
+ until_time DATETIME(6) NOT NULL COMMENT '本轮固定时间上界，不包含此时间；供增量扫描和后续基线衔接使用',
+ after_update_time DATETIME(6) NULL COMMENT '最近已提交批次的更新时间游标；与after_id构成增量有序游标',
+ after_id BIGINT NOT NULL DEFAULT 0 COMMENT '最近已提交批次的来源扫描ID；同更新时间下用于稳定分页',
+ PRIMARY KEY(job_id,source_code),
+ KEY ix_preparation_source_baseline(source_code,job_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='逐来源的整理扫描计划和持久化游标；支持增量、失败重试及断点续传';

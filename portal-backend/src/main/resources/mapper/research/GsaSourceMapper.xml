@@ -4,7 +4,7 @@
     <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN
         CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END)
-        source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
         primary_flag FROM gsa_publication WHERE id&gt;#{after} AND (is_primary=1 OR #{related}=TRUE) ORDER BY id LIMIT
         #{size}
     </select>
@@ -18,7 +18,7 @@
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN
         CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END)
-        source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
         primary_flag FROM gsa_publication WHERE 1=0
         <if test='pmids.size()>0'>OR pmid IN
             <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach>
@@ -30,12 +30,22 @@
     <select id="keys" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN
         CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END)
-        source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
         primary_flag FROM gsa_publication WHERE gsa_record_key IN <foreach collection='keys' item='v' open='(' close=')'
                                                                            separator=','>#{v}
     </foreach> OR CONCAT('PMID:',pmid) IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}
     </foreach> OR CONCAT('DOI:',doi) IN <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}
     </foreach> OR CONCAT('LOCAL_ID:',id) IN
         <foreach collection='keys' item='v' open='(' close=')' separator=','>#{v}</foreach>
+    </select>
+    <select id="changedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+
+        SELECT update_time source_updated_time, id source_row_id,'GSA' source_code,COALESCE(gsa_record_key,CASE WHEN pmid IS NOT NULL THEN
+        CONCAT('PMID:',pmid) WHEN doi IS NOT NULL THEN CONCAT('DOI:',doi) ELSE CONCAT('LOCAL_ID:',id) END)
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,gsa_accessions,bioproject_accession,cncb_banks_json,is_primary
+        primary_flag FROM gsa_publication
+ WHERE (is_primary=1 OR #{related}=TRUE) AND update_time &lt; #{until}
+ AND (update_time &gt; #{time} OR (update_time=#{time} AND id &gt; #{after}))
+ ORDER BY update_time,id LIMIT #{size}
     </select>
 </mapper>

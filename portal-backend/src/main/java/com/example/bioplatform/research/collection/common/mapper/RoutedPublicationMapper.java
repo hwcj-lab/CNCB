@@ -19,4 +19,5 @@ public interface RoutedPublicationMapper {
     List<Integer> years(@Param("table") String table, @Param("related") boolean related);
 
     List<SourcePublicationRecord> identifiers(@Param("table") String table, @Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
+    List<SourcePublicationRecord> changedPage(@Param("table") String table, @Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

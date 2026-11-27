@@ -52,4 +52,12 @@ public interface ResearchPublicationSource {
      * 按该来源自己的业务唯一值批量读取记录，供分库统计穿透使用。
      */
     List<SourcePublicationRecord> loadRecordsBySourceKeys(List<String> sourceKeys);
+
+    /** Optional ordered change stream; the existing collection/full-scan contract remains unchanged. */
+    default boolean supportsIncremental() { return false; }
+
+    default List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+        throw new UnsupportedOperationException("Source does not provide update_time/id pagination: " + sourceCode());
+    }
 }

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.bioplatform.research.statistics.prepared.mapper.PreparedStatisticsMapper">
+ <insert id="saveConfig">INSERT INTO research_prepared_snapshot(snapshot_id,preparation_revision,source_names_json,topic_scopes_json) VALUES(#{snapshotId},#{preparationRevision},#{sourceNamesJson},#{topicScopesJson})</insert>
+ <select id="config" resultType="com.example.bioplatform.research.statistics.prepared.model.PreparedSnapshotConfig">SELECT * FROM research_prepared_snapshot WHERE snapshot_id=#{id}</select>
+ <select id="versions" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">SELECT s.* FROM research_stat_snapshot s JOIN research_prepared_snapshot p ON p.snapshot_id=s.id ORDER BY s.id DESC LIMIT 100</select>
+ <select id="latestSuccess" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">SELECT s.* FROM research_stat_snapshot s JOIN research_prepared_snapshot p ON p.snapshot_id=s.id WHERE s.status='SUCCESS' ORDER BY s.id DESC LIMIT 1</select>
+ <sql id="canonicalKey">CASE WHEN d.record_kind='RESOURCE' THEN d.document_key WHEN COALESCE(d.pmid,i.pmid) IS NOT NULL THEN CONCAT('P:',COALESCE(d.pmid,i.pmid)) ELSE d.document_key END</sql>
+ <sql id="key"><choose><when test="q.type == 'CATEGORY'">CONCAT(d.source_code,':',<include refid="canonicalKey"/>)</when><otherwise><include refid="canonicalKey"/></otherwise></choose></sql>
+ <sql id="from">research_prepared_document d LEFT JOIN research_prepared_identity i ON i.revision=#{q.revision} AND i.doi=d.doi</sql>
+ <sql id="eligible">d.valid_from&lt;=#{q.revision} AND (d.valid_until IS NULL OR d.valid_until&gt;#{q.revision})
+ AND d.source_code IN <foreach collection="q.sources" item="s" open="(" close=")" separator=",">#{s}</foreach>
+ <if test="q.scope != 'TOTAL'">AND d.source_code=#{q.scope}</if>
+ <if test="q.sourceFilter != null">
+  <choose><when test="q.sourceFilter.size()>0">AND d.source_code IN <foreach collection="q.sourceFilter" item="s" open="(" close=")" separator=",">#{s}</foreach></when><otherwise>AND 1=0</otherwise></choose>
+ </if>
+ <if test="!q.includeRelated">AND d.primary_flag=1</if>
+ <if test="!q.includeResources">AND d.record_kind='PUBLICATION'</if>
+ </sql>
+ <sql id="memberFilter">
+ <if test="q.memberKey != null">
+ <choose><when test="q.type == 'YEAR'">AND <include refid="key"/> IN (
+ SELECT canonical_key FROM (SELECT <include refid="key"/> canonical_key,MIN(y.stat_year) chosen_year FROM <include refid="from"/> JOIN research_prepared_year y ON y.document_id=d.id WHERE <include refid="eligible"/> GROUP BY canonical_key) years WHERE chosen_year=#{q.memberKey})
+ </when><when test="q.type == 'DATABASE'">AND d.source_code=#{q.memberKey}</when>
+ <when test="q.type == 'CATEGORY'"></when>
+ <otherwise>AND m.member_key=#{q.memberKey}</otherwise></choose>
+ </if>
+ </sql>
+ <select id="rank" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension">
+ <choose><when test="q.type == 'YEAR'">
+ SELECT CAST(chosen_year AS CHAR) dimension_key,CAST(chosen_year AS CHAR) display_name,chosen_year stat_year,COUNT(*) publication_count FROM (
+ SELECT <include refid="key"/> canonical_key,MIN(m.stat_year) chosen_year FROM <include refid="from"/> JOIN research_prepared_year m ON m.document_id=d.id WHERE <include refid="eligible"/> GROUP BY canonical_key
+ ) years GROUP BY chosen_year ORDER BY chosen_year
+ </when><otherwise>
+ SELECT m.member_key dimension_key,MIN(m.display_name) display_name,MIN(m.author_name) author_name,MIN(m.institution_name) institution_name,COUNT(DISTINCT <include refid="key"/>) publication_count
+ FROM <include refid="from"/> JOIN ${table} m ON m.document_id=d.id WHERE <include refid="eligible"/> GROUP BY m.member_key ORDER BY publication_count DESC,display_name ASC,m.member_key ASC LIMIT 50
+ </otherwise></choose>
+ </select>
+ <select id="count" resultType="long">SELECT COUNT(DISTINCT <include refid="key"/>) FROM <include refid="from"/> WHERE <include refid="eligible"/></select>
+ <select id="resources" resultType="long">SELECT COUNT(DISTINCT <include refid="key"/>) FROM <include refid="from"/> WHERE <include refid="eligible"/> AND d.record_kind='RESOURCE'</select>
+ <select id="coverage" resultType="long">
+ SELECT COUNT(DISTINCT <include refid="key"/>) FROM <include refid="from"/>
+ <if test="table != null">JOIN ${table} m ON m.document_id=d.id</if>
+ WHERE <include refid="eligible"/><include refid="memberFilter"/>
+ </select>
+ <insert id="insertDimension" useGeneratedKeys="true" keyProperty="row.id">
+ INSERT INTO research_stat_dimension(snapshot_id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count)
+ VALUES(#{snapshotId},#{row.scopeCode},#{row.dimensionType},#{row.dimensionKey},#{row.displayName},#{row.authorName},#{row.institutionName},COALESCE(#{row.statYear},0),#{row.publicationCount})
+ </insert>
+ <select id="dimension" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension">SELECT * FROM research_stat_dimension WHERE snapshot_id=#{snapshotId} AND id=#{id}</select>
+ <insert id="insertDimensions">
+ INSERT INTO research_stat_dimension(snapshot_id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count) VALUES
+ <foreach collection="rows" item="row" separator=",">(#{snapshotId},#{row.scopeCode},#{row.dimensionType},#{row.dimensionKey},#{row.displayName},#{row.authorName},#{row.institutionName},COALESCE(#{row.statYear},0),#{row.publicationCount})</foreach>
+ </insert>
+ <select id="publications" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication">
+ SELECT canonical_key publication_key,MIN(record_kind) record_kind,MIN(resource_accession) resource_accession,MIN(source_url) source_url,MIN(source_url) resource_url,
+ MIN(pmid) pmid,MIN(doi) doi,MIN(title) title,MIN(pub_year) pub_year,MIN(journal_title) journal_title,
+ MIN(gsa_accessions) gsa_accessions,MIN(bioproject_accession) bioproject_accession,
+ GROUP_CONCAT(source_code ORDER BY source_code) source_codes,JSON_OBJECTAGG(source_code,source_key) source_record_keys
+ FROM (
+ SELECT <include refid="key"/> canonical_key,d.source_code,MIN(d.source_key) source_key,MIN(d.record_kind) record_kind,MIN(d.resource_accession) resource_accession,MIN(d.source_url) source_url,
+ MIN(d.pmid) pmid,MIN(d.doi) doi,MIN(d.title) title,MIN(d.pub_year) pub_year,MIN(d.journal_title) journal_title,MIN(d.gsa_accessions) gsa_accessions,MIN(d.bioproject_accession) bioproject_accession
+ FROM <include refid="from"/>
+ <if test="table != null">JOIN ${table} m ON m.document_id=d.id</if>
+ WHERE <include refid="eligible"/><include refid="memberFilter"/> GROUP BY canonical_key,d.source_code
+ ) sources GROUP BY canonical_key ORDER BY canonical_key LIMIT #{size} OFFSET #{offset}
+ </select>
+ <delete id="deleteConfig">DELETE FROM research_prepared_snapshot WHERE snapshot_id=#{id}</delete>
+ <select id="lock" resultType="int">SELECT GET_LOCK('bioplatform-prepared-snapshot-create',0)</select>
+ <select id="unlock" resultType="int">SELECT RELEASE_LOCK('bioplatform-prepared-snapshot-create')</select>
+</mapper>

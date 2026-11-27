@@ -25,4 +25,5 @@ public interface BioProjectSourceMapper {
 
     
     List<SourcePublicationRecord> keys(@Param("keys") List<String> keys);
+    List<SourcePublicationRecord> changedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

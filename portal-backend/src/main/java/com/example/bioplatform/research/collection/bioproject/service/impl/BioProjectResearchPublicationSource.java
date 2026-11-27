@@ -65,4 +65,10 @@ public class BioProjectResearchPublicationSource implements ResearchPublicationS
             }
         return result;
     }
+
+    @Override public boolean supportsIncremental() { return true; }
+    @Override public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+        return mapper.changedPage(related,time,after,until,size);
+    }
 }

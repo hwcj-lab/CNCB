@@ -108,6 +108,7 @@ export function distributionOption(items, resourceMode = false) {
       {
         name: "研究主题",
         type: "pie",
+        stillShowZeroSum: false,
         radius: ["48%", "68%"],
         center: ["50%", "43%"],
         avoidLabelOverlap: true,

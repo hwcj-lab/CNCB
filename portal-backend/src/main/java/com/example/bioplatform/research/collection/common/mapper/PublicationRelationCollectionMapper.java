@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * OpenLB/GenBase关联文献递归采集的作业、队列、文献与无序关系持久层。
+ * OpenLB/GenBase关联文献单层关联采集的作业、队列、文献与无序关系持久层。
  */
 @Mapper
 public interface PublicationRelationCollectionMapper {
@@ -27,7 +27,6 @@ public interface PublicationRelationCollectionMapper {
     /**
      * 人工恢复失败作业时，重新领取其失败节点；成功节点不重复执行。
      */
-    @org.apache.ibatis.annotations.Update("UPDATE research_relation_crawl_queue SET status='PENDING',last_error=NULL,update_time=NOW() WHERE job_id=#{jobId} AND status='FAILED'")
     int retryFailedQueue(@Param("jobId") long jobId);
 
     /**
@@ -178,4 +177,10 @@ public interface PublicationRelationCollectionMapper {
                                                  @Param("identifierType") String identifierType,
                                                  @Param("identifier") String identifier,
                                                  @Param("offset") int offset, @Param("size") int size);
+
+    /** Record a discovered leaf for visited/counting without scheduling another lookup. */
+    int insertTerminalQueue(@Param("jobId") long jobId, @Param("identifierType") String identifierType,
+                            @Param("identifier") String identifier, @Param("depth") int depth);
+    /** Old recursive queues are compatible with the new one-level policy on resume. */
+    int finishDescendantQueue(@Param("jobId") long jobId);
 }

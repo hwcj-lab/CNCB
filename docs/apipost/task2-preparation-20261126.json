@@ -1,0 +1,180 @@
+{
+  "info": {
+    "name": "任务二 · 数据整理接口（全量 / 增量 / 断点）",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "可导入Apipost/Postman。先安装增量迁移和索引SQL。按需手动执行，不要全集合运行（包含停止、丢弃、重建）。常用顺序：状态→incremental→轮询状态→成功后用统计接口生成快照。物理删除需start完整扫描；基金字典/解析规则变化不会更新原表时间，需start或rebuild。"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 查询状态、来源及每库断点",
+      "request": {
+        "method": "GET",
+        "description": "返回job.scanMode、afterUpdateTime、afterId、sourceCursors、readyRevision、canBuild。sourceCursors中的FULL表示该来源正在建立基线或只支持全量；INCREMENTAL表示读取变更窗口。",
+        "url": "{{baseUrl}}/api/research-preparation/status"
+      },
+      "response": []
+    },
+    {
+      "name": "02 增量同步全部来源（首次自动建立基线）",
+      "request": {
+        "method": "POST",
+        "description": "建议采集提交完成后执行。首次或升级后缺少来源基线时自动完整扫描一次，复用未变化成员；后续按update_time、id读取变化记录。默认回看5秒，不重复新增相同成员。失败/停止时续传冻结任务；不换来源。",
+        "url": "{{baseUrl}}/api/research-preparation/incremental",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "03 只增量同步选中来源",
+      "request": {
+        "method": "POST",
+        "description": "编码使用status返回的sources.code。仅更新所选来源，不把未读取的其他记录或数据库标为删除。",
+        "url": "{{baseUrl}}/api/research-preparation/incremental",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCodes\": [\n    \"GSA\"\n  ],\n  \"batchSize\": 200\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "04 完整扫描并校验删除",
+      "request": {
+        "method": "POST",
+        "description": "保留原接口。读取所选来源的全部记录、比对内容摘要；未变化不重写成员。来源删除的原记录在扫描完成后关闭旧版本。字典或规则变化后也可使用此接口。",
+        "url": "{{baseUrl}}/api/research-preparation/start",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "05 安全停止",
+      "request": {
+        "method": "POST",
+        "description": "当前事务批次提交后停止，成员写入和时间/ID游标在同一事务。",
+        "url": "{{baseUrl}}/api/research-preparation/stop"
+      },
+      "response": []
+    },
+    {
+      "name": "06 断点继续 / 失败重试",
+      "request": {
+        "method": "POST",
+        "description": "沿用原任务的模式、来源、时间上界、每库已提交游标。成功任务不会作为断点续传，需新调incremental或start。",
+        "url": "{{baseUrl}}/api/research-preparation/retry"
+      },
+      "response": []
+    },
+    {
+      "name": "07 恢复进程中断状态",
+      "request": {
+        "method": "POST",
+        "description": "仅在确认旧进程已停止后调用；把残留RUNNING转为STOPPED，然后retry。当前本进程仍运行会拒绝。",
+        "url": "{{baseUrl}}/api/research-preparation/recover"
+      },
+      "response": []
+    },
+    {
+      "name": "08 丢弃未发布版本",
+      "request": {
+        "method": "POST",
+        "description": "只允许FAILED或STOPPED任务。删除未发布成员版本并恢复旧事实；该任务的游标不作为后续增量基线。保留原始文献和成功快照。",
+        "url": "{{baseUrl}}/api/research-preparation/discard"
+      },
+      "response": []
+    },
+    {
+      "name": "09 强制重建全部成员",
+      "request": {
+        "method": "POST",
+        "description": "创建新整理版本，强制重解析。不是TRUNCATE。旧快照的整理版本保留。未完成任务需先续传或丢弃。",
+        "url": "{{baseUrl}}/api/research-preparation/rebuild",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "10 强制重建指定来源",
+      "request": {
+        "method": "POST",
+        "description": "只重建所选来源，后续快照仍可使用其他来源已发布的整理结果。",
+        "url": "{{baseUrl}}/api/research-preparation/rebuild",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCodes\": [\n    \"GENBASE\"\n  ],\n  \"batchSize\": 200\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    }
+  ]
+}

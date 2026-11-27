@@ -38,6 +38,8 @@ public interface OpenLbRoutingMapper {
 
     int copyRelations(@Param("code") String code, @Param("pmids") List<String> pmids);
 
+    int promotePrimary(@Param("table") String table, @Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
+
     int writeGenBase(@Param("rows") List<OpenLbPublicationWriteRow> rows);
 
     int write(@Param("table") String table, @Param("rows") List<OpenLbPublicationWriteRow> rows);

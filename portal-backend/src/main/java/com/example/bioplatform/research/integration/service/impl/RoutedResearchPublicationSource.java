@@ -15,4 +15,10 @@ public class RoutedResearchPublicationSource implements ResearchPublicationSourc
  public long countRecords(boolean related){return mapper.count(table,related);}
  public List<Integer> distinctYears(boolean related){return mapper.years(table,related);}
  public List<SourcePublicationRecord> loadRecordsBySourceKeys(List<String> keys){return loadRecordsByIdentifiers(keys.stream().filter(k->k.startsWith("PMID:")).map(k->k.substring(5)).toList(),List.of());}
+
+    @Override public boolean supportsIncremental() { return true; }
+    @Override public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+        return tag(mapper.changedPage(table,related,time,after,until,size));
+    }
 }

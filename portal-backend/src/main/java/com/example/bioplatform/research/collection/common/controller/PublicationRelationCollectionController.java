@@ -16,7 +16,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 /**
- * 人工控制的单文献刷新和递归关联采集接口；不会自动运行全量任务。
+ * 人工控制的单文献刷新和单层关联采集接口；不会自动运行全量任务。
  */
 @RestController
 @RequestMapping("/api/collection/publication-relations")
@@ -26,7 +26,7 @@ public class PublicationRelationCollectionController {
     private final PublicationRelationCollectionService service;
 
     @PostMapping("/jobs/start")
-    @Operation(summary = "启动单文献刷新/关联发现", description = "identifiers示例：GSA={pmid:41028458}；GenBase={paperId:203}或{pmid:42514208}")
+    @Operation(summary = "启动单文献刷新/单层关联发现", description = "identifiers示例：GSA={pmid:41028458}；GenBase={paperId:203}或{pmid:42514208}")
     public ApiResponse<PublicationRelationJobStatus> start(@Valid @RequestBody PublicationRelationCollectionRequest request) {
         return ApiResponse.ok(service.start(request));
     }

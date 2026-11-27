@@ -1,41 +1,22 @@
 package com.example.bioplatform.research.statistics.service.impl;
 
+import com.example.bioplatform.common.BusinessException;
+import com.example.bioplatform.research.collection.common.dto.*;
+import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
+import com.example.bioplatform.research.collection.common.vo.ResearchPublicationSourceOption;
 import com.example.bioplatform.research.common.FundAgencyParser;
-import com.example.bioplatform.research.common.PublicationLinks;
-import com.example.bioplatform.research.common.PublicationMetadataProcessor;
-import com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord;
-import com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping;
-import com.example.bioplatform.research.collection.common.dto.ResearchFundDictionaryEntry;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
+import com.example.bioplatform.research.integration.service.impl.ResearchPublicationSourceRegistry;
 import com.example.bioplatform.research.statistics.dto.ResearchSnapshotBuildRequest;
 import com.example.bioplatform.research.statistics.dto.ResearchSnapshotCreate;
-import com.example.bioplatform.research.collection.common.dto.SnapshotDimensionCandidateRow;
-import com.example.bioplatform.research.collection.common.dto.SnapshotDimensionPublicationRow;
-import com.example.bioplatform.research.collection.common.dto.SnapshotDimensionSeedRow;
-import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
 import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
-import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.statistics.service.ResearchSnapshotService;
-import com.example.bioplatform.research.collection.common.vo.ResearchPublicationSourceOption;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotDatabaseOption;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublicationPage;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotResult;
-import com.example.bioplatform.research.statistics.vo.ResearchSnapshotStatus;
-import com.example.bioplatform.research.integration.service.impl.ResearchPublicationSourceRegistry;
-
-
-import com.example.bioplatform.common.BusinessException;
-
-
+import com.example.bioplatform.research.statistics.vo.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PreDestroy;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +31,6 @@ import java.util.stream.Collectors;
 /**
  * 基于自动注册来源构建不可变科研统计快照。
  */
-@Service
 @RequiredArgsConstructor
 public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
     private static final int BATCH_SIZE = 500;

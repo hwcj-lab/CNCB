@@ -21,4 +21,5 @@ public interface GsaSourceMapper {
     List<SourcePublicationRecord> identifiers(@Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
 
     List<SourcePublicationRecord> keys(@Param("keys") List<String> keys);
+    List<SourcePublicationRecord> changedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

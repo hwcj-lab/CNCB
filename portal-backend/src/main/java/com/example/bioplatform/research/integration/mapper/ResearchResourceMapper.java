@@ -32,4 +32,5 @@ public interface ResearchResourceMapper {
     int relationStatus(@Param("code") String code, @Param("id") String id, @Param("status") String status, @Param("error") String error);
 
     int grants(@Param("code") String code, @Param("id") String id, @Param("grants") String grants);
+    List<SourcePublicationRecord> changedPage(@Param("code") String code, @Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

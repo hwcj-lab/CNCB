@@ -1,0 +1,448 @@
+{
+  "info": {
+    "name": "任务二：采集→整理→快照（2026-11-26）",
+    "description": "按文件夹顺序手动执行。不要整集合一键运行：采集会访问上游，stop/discard/rebuild/delete是按需操作。SQL先安装；本次没有执行历史整理。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080"
+    },
+    {
+      "key": "snapshotId",
+      "value": "1"
+    },
+    {
+      "key": "dimensionId",
+      "value": "1"
+    },
+    {
+      "key": "sourceCode",
+      "value": "GSA"
+    },
+    {
+      "key": "pmid",
+      "value": "41769996"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 采集（原接口，按需手动调用）",
+      "item": [
+        {
+          "name": "OpenLB分流采集",
+          "request": {
+            "method": "POST",
+            "description": "保持原流程：读取PMID任务，查询OpenLB，按配置分流。会访问上游；不要为了整理重复采集。",
+            "url": "{{baseUrl}}/api/collection/openlb/jobs/start"
+          },
+          "response": []
+        },
+        {
+          "name": "OpenLB状态",
+          "request": {
+            "method": "GET",
+            "description": "只读查询原采集状态。",
+            "url": "{{baseUrl}}/api/collection/openlb/status"
+          },
+          "response": []
+        },
+        {
+          "name": "GenBase独立补充",
+          "request": {
+            "method": "POST",
+            "description": "保持原GenBase采集流程。",
+            "url": "{{baseUrl}}/api/collection/genbase/jobs/start"
+          },
+          "response": []
+        },
+        {
+          "name": "GSA独立补充",
+          "request": {
+            "method": "POST",
+            "description": "保持原GSA独立采集流程。",
+            "url": "{{baseUrl}}/api/collection/gsa/jobs/start"
+          },
+          "response": []
+        },
+        {
+          "name": "BioProject独立补充",
+          "request": {
+            "method": "POST",
+            "description": "保持原BioProject独立采集流程。",
+            "url": "{{baseUrl}}/api/collection/bioproject/jobs/start"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 独立整理（仅处理本地数据，不访问上游）",
+      "item": [
+        {
+          "name": "01 查询状态、来源及每库断点",
+          "request": {
+            "method": "GET",
+            "description": "返回job.scanMode、afterUpdateTime、afterId、sourceCursors、readyRevision、canBuild。sourceCursors中的FULL表示该来源正在建立基线或只支持全量；INCREMENTAL表示读取变更窗口。",
+            "url": "{{baseUrl}}/api/research-preparation/status"
+          },
+          "response": []
+        },
+        {
+          "name": "02 增量同步全部来源（首次自动建立基线）",
+          "request": {
+            "method": "POST",
+            "description": "建议采集提交完成后执行。首次或升级后缺少来源基线时自动完整扫描一次，复用未变化成员；后续按update_time、id读取变化记录。默认回看5秒，不重复新增相同成员。失败/停止时续传冻结任务；不换来源。",
+            "url": "{{baseUrl}}/api/research-preparation/incremental",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 只增量同步选中来源",
+          "request": {
+            "method": "POST",
+            "description": "编码使用status返回的sources.code。仅更新所选来源，不把未读取的其他记录或数据库标为删除。",
+            "url": "{{baseUrl}}/api/research-preparation/incremental",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceCodes\": [\n    \"GSA\"\n  ],\n  \"batchSize\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 完整扫描并校验删除",
+          "request": {
+            "method": "POST",
+            "description": "保留原接口。读取所选来源的全部记录、比对内容摘要；未变化不重写成员。来源删除的原记录在扫描完成后关闭旧版本。字典或规则变化后也可使用此接口。",
+            "url": "{{baseUrl}}/api/research-preparation/start",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 安全停止",
+          "request": {
+            "method": "POST",
+            "description": "当前事务批次提交后停止，成员写入和时间/ID游标在同一事务。",
+            "url": "{{baseUrl}}/api/research-preparation/stop"
+          },
+          "response": []
+        },
+        {
+          "name": "06 断点继续 / 失败重试",
+          "request": {
+            "method": "POST",
+            "description": "沿用原任务的模式、来源、时间上界、每库已提交游标。成功任务不会作为断点续传，需新调incremental或start。",
+            "url": "{{baseUrl}}/api/research-preparation/retry"
+          },
+          "response": []
+        },
+        {
+          "name": "07 恢复进程中断状态",
+          "request": {
+            "method": "POST",
+            "description": "仅在确认旧进程已停止后调用；把残留RUNNING转为STOPPED，然后retry。当前本进程仍运行会拒绝。",
+            "url": "{{baseUrl}}/api/research-preparation/recover"
+          },
+          "response": []
+        },
+        {
+          "name": "08 丢弃未发布版本",
+          "request": {
+            "method": "POST",
+            "description": "只允许FAILED或STOPPED任务。删除未发布成员版本并恢复旧事实；该任务的游标不作为后续增量基线。保留原始文献和成功快照。",
+            "url": "{{baseUrl}}/api/research-preparation/discard"
+          },
+          "response": []
+        },
+        {
+          "name": "09 强制重建全部成员",
+          "request": {
+            "method": "POST",
+            "description": "创建新整理版本，强制重解析。不是TRUNCATE。旧快照的整理版本保留。未完成任务需先续传或丢弃。",
+            "url": "{{baseUrl}}/api/research-preparation/rebuild",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceCodes\": [],\n  \"batchSize\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10 强制重建指定来源",
+          "request": {
+            "method": "POST",
+            "description": "只重建所选来源，后续快照仍可使用其他来源已发布的整理结果。",
+            "url": "{{baseUrl}}/api/research-preparation/rebuild",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceCodes\": [\n    \"GENBASE\"\n  ],\n  \"batchSize\": 200\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 从整理结果生成快照（不读取原始JSON）",
+      "item": [
+        {
+          "name": "创建快照",
+          "request": {
+            "method": "POST",
+            "description": "整理完成才可创建，冻结整理版本及来源/主题映射。includeRelated控制非本库文献，includeResources控制无文献资源。",
+            "url": "{{baseUrl}}/api/research-snapshots/build",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"整理结果快照\",\n  \"includeRelated\": false,\n  \"includeResources\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "生成状态",
+          "request": {
+            "method": "GET",
+            "description": "后台生成状态与最新成功版本。",
+            "url": "{{baseUrl}}/api/research-snapshots/status"
+          },
+          "response": []
+        },
+        {
+          "name": "停止生成",
+          "request": {
+            "method": "POST",
+            "description": "当前维度查询完成后停止。失败或停止版本不发布。",
+            "url": "{{baseUrl}}/api/research-snapshots/stop"
+          },
+          "response": []
+        },
+        {
+          "name": "恢复中断快照",
+          "request": {
+            "method": "POST",
+            "description": "仅确认旧生成进程停止后使用；回收BUILDING版本，不影响成功版本。",
+            "url": "{{baseUrl}}/api/research-snapshots/recover"
+          },
+          "response": []
+        },
+        {
+          "name": "全部已注册来源",
+          "request": {
+            "method": "GET",
+            "description": "来源注册中心动态返回，不写死数据库集合。",
+            "url": "{{baseUrl}}/api/research-snapshots/sources"
+          },
+          "response": []
+        },
+        {
+          "name": "新版快照列表",
+          "request": {
+            "method": "GET",
+            "description": "只列整理层生成的快照。旧格式记录保留在数据库，不按新语义回放。",
+            "url": "{{baseUrl}}/api/research-snapshots"
+          },
+          "response": []
+        },
+        {
+          "name": "最新成功版本",
+          "request": {
+            "method": "GET",
+            "description": "最近成功的整理层快照。",
+            "url": "{{baseUrl}}/api/research-snapshots/latest"
+          },
+          "response": []
+        },
+        {
+          "name": "最新总统计",
+          "request": {
+            "method": "GET",
+            "description": "总统计全局去重，排名只保存Top50，年度和总统计固定类别不截断。",
+            "url": "{{baseUrl}}/api/research-snapshots/latest/result?limitPerDimension=50"
+          },
+          "response": []
+        },
+        {
+          "name": "版本详情",
+          "request": {
+            "method": "GET",
+            "description": "版本状态、统计口径、覆盖数量等。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}"
+          },
+          "response": []
+        },
+        {
+          "name": "指定版本总统计",
+          "request": {
+            "method": "GET",
+            "description": "只读小规模预聚合结果。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/result?limitPerDimension=50"
+          },
+          "response": []
+        },
+        {
+          "name": "分库总览",
+          "request": {
+            "method": "GET",
+            "description": "每个来源自身去重计数，包括0条的来源。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/databases"
+          },
+          "response": []
+        },
+        {
+          "name": "主题下的数据库",
+          "request": {
+            "method": "GET",
+            "description": "使用生成时冻结的主题映射，映射后续变化不改变旧快照。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/topics/SEQUENCE/databases"
+          },
+          "response": []
+        },
+        {
+          "name": "分数据库统计",
+          "request": {
+            "method": "GET",
+            "description": "同一聚合算法，加来源过滤；分库主题来自关键词和MeSH。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/databases/{{sourceCode}}/result?limitPerDimension=50"
+          },
+          "response": []
+        },
+        {
+          "name": "总统计单维度",
+          "request": {
+            "method": "GET",
+            "description": "YEAR、AUTHOR、INSTITUTION、FUND、TOPIC、DATABASE。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/dimensions/AUTHOR?limit=50"
+          },
+          "response": []
+        },
+        {
+          "name": "维度穿透",
+          "request": {
+            "method": "GET",
+            "description": "按冻结整理版本查询成员及文献身份，不使用research_stat_dimension_publication。返回PMID/DOI/URL、来源及来源业务键。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/dimensions/{{dimensionId}}/publications?page=1&size=10"
+          },
+          "response": []
+        },
+        {
+          "name": "关联文献穿透（原公共接口）",
+          "request": {
+            "method": "GET",
+            "description": "关联边仍由原采集维护，整理不会删改。无PMID可用DOI或适配器支持的SOURCE_KEY/PAPER_ID。",
+            "url": "{{baseUrl}}/api/collection/publication-relations/publications?databaseCode={{sourceCode}}&identifierType=PMID&identifier={{pmid}}&page=1&size=20"
+          },
+          "response": []
+        },
+        {
+          "name": "修改快照名称",
+          "request": {
+            "method": "PATCH",
+            "description": "只修改名称。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}/name",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"验证后的快照\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "删除单个快照",
+          "request": {
+            "method": "DELETE",
+            "description": "只删除该版本元数据/维度/冻结配置，保留整理事实和原始文献。",
+            "url": "{{baseUrl}}/api/research-snapshots/{{snapshotId}}"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

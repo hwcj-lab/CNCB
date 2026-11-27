@@ -231,20 +231,21 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
     }
 
     /**
-     * 按持久化队列执行广度优先发现，达到单次预算时暂停而不是丢弃队列。
+     * 按持久化队列处理输入根文献的一层关联，达到单次预算时暂停而不是丢弃队列。
      */
     private void runJob(long jobId, boolean refreshRoot, boolean refreshRelations, int maxPublications, long delayMs) {
-        try {
+        try (var cache = com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.open()) {
             mapper.recoverRunningQueue(jobId);
+            mapper.finishDescendantQueue(jobId);
             int processedThisRun = 0;
             while (!stopRequested.get()) {
-                if (processedThisRun >= maxPublications) {
-                    mapper.finishJob(jobId, "PAUSED", "达到本次maxPublications安全上限，可人工继续");
-                    return;
-                }
                 RelationQueueNode node = mapper.findNextPending(jobId);
                 if (node == null) {
                     mapper.finishJob(jobId, "SUCCESS", null);
+                    return;
+                }
+                if (processedThisRun >= maxPublications) {
+                    mapper.finishJob(jobId, "PAUSED", "达到本次maxPublications安全上限，可人工继续");
                     return;
                 }
                 mapper.markQueueRunning(node.id());
@@ -317,12 +318,16 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         int relations = 0;
         for (Map.Entry<String, String> entry : discovered.entrySet()) {
             String relatedPmid = entry.getKey();
-            RelatedPublicationWriteRow related = fetchOpenLbPublication(relatedPmid, true, delayMs);
-            publicationStore.write(job.databaseCode(), List.of(related));
+            if (stopRequested.get()) throw new InterruptedException("人工停止");
+            if (!com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.wasWritten(job.databaseCode(), relatedPmid)) {
+                RelatedPublicationWriteRow related = fetchOpenLbPublication(relatedPmid, true, delayMs);
+                publicationStore.write(job.databaseCode(), List.of(related));
+                com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.written(job.databaseCode(), relatedPmid);
+            }
             CanonicalPair pair = pair(source.pmid() == null ? node.identifierType() : "PMID", source.pmid() == null ? node.identifierValue() : source.pmid(), "PMID", relatedPmid);
             mapper.upsertRelation(job.databaseCode(), pair.leftType, pair.leftValue, pair.rightType, pair.rightValue,
                     entry.getValue(), node.depth() + 1, jobId);
-            int queued = mapper.insertQueueIgnore(jobId, "PMID", relatedPmid, node.depth() + 1);
+            int queued = mapper.insertTerminalQueue(jobId, "PMID", relatedPmid, node.depth() + 1);
             newPublications += queued;
             relations++;
         }
@@ -334,7 +339,7 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
             var canonical = pair(leftType, leftValue, identifier.type(), identifier.value());
             mapper.upsertRelation(job.databaseCode(), canonical.leftType, canonical.leftValue, canonical.rightType, canonical.rightValue,
                     "https://ngdc.cncb.ac.cn/bioproject/browse/" + com.example.bioplatform.research.common.PublicationValues.text(reference, "proAccession"), node.depth() + 1, jobId);
-            newPublications += mapper.insertQueueIgnore(jobId, identifier.type(), identifier.value(), node.depth() + 1);
+            newPublications += mapper.insertTerminalQueue(jobId, identifier.type(), identifier.value(), node.depth() + 1);
             relations++;
         }
         String relationType = source.pmid() == null ? node.identifierType() : "PMID";

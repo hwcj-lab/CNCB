@@ -91,4 +91,9 @@
         (right_identifier_type='PMID' AND right_identifier IN <foreach collection='pmids' item='v' open='(' close=')'
                                                                        separator=','>#{v}</foreach>))
     </insert>
+    <update id="promotePrimary">
+      UPDATE ${table} SET is_primary=1 WHERE is_primary=0 AND (1=0
+      <if test="pmids.size()>0">OR pmid IN <foreach collection="pmids" item="p" open="(" close=")" separator=",">#{p}</foreach></if>
+      <if test="dois.size()>0">OR doi IN <foreach collection="dois" item="p" open="(" close=")" separator=",">#{p}</foreach></if>)
+    </update>
 </mapper>

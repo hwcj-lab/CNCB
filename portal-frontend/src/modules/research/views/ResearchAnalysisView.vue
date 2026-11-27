@@ -1,4 +1,6 @@
 <script setup>
+import PreparationPanel from "../components/PreparationPanel.vue";
+const preparationReady = ref(false);
 import BioProjectCollectionPanel from "../components/BioProjectCollectionPanel.vue";
 import GsaCollectionPanel from "../components/GsaCollectionPanel.vue";
 import OpenLbBankInventory from "../components/OpenLbBankInventory.vue";
@@ -17,8 +19,6 @@ import {
   deleteResearchSnapshot,
   getRelatedPublications,
   getResearchSnapshotSources,
-  getPublicationIntegrationStatus,
-  rebuildPublicationIntegration,
 } from "../api/research";
 import { safeExternalUrl, publicationExternalUrl, publicationExternalLabel, publicationResourceLinks } from "../utils/links";
 import AppIcon from "../../../shared/components/AppIcon.vue";
@@ -38,8 +38,6 @@ const summary = ref(null),
   building = ref(false),
   snapshotRunning = ref(false),
   snapshotStatusMessage = ref(""),
-  integrationRunning = ref(false),
-  integrationMessage = ref(""),
   drilldownOpen = ref(false),
   drilldownLoading = ref(false),
   drilldown = ref({ title: "", type: "", dimensionId: null, page: 1, data: null }),
@@ -140,11 +138,7 @@ async function refreshSnapshotStatus() {
   } catch {
     // 状态接口异常不覆盖主体内容；生成接口仍由后端执行并发保护。
   }
-  try {
-    const state = await getPublicationIntegrationStatus();
-    integrationRunning.value = Boolean(state?.running);
-    integrationMessage.value = state?.message || "";
-  } catch { }
+
 }
 onMounted(() => {
   load();
@@ -264,8 +258,8 @@ async function showSources() {
 }
 async function openCreateSnapshot() {
   await refreshSnapshotStatus();
-  if (integrationRunning.value) {
-    ElMessage.warning("全局文献整合表正在重建，请完成后再生成快照");
+  if (!preparationReady.value) {
+    ElMessage.warning("请先完成统计数据整理");
     return;
   }
   if (snapshotRunning.value) {
@@ -301,8 +295,8 @@ async function deleteCurrentSnapshot() {
 }
 async function createSnapshot() {
   await refreshSnapshotStatus();
-  if (integrationRunning.value) {
-    ElMessage.warning("全局文献整合表正在重建，请完成后再生成快照");
+  if (!preparationReady.value) {
+    ElMessage.warning("请先完成统计数据整理");
     return;
   }
   building.value = true;
@@ -327,21 +321,6 @@ async function createSnapshot() {
     throw new Error("统计仍在后台运行，请稍后点击重试");
   } catch (e) { error.value = e.message; }
   finally { building.value = false; await refreshSnapshotStatus(); }
-}
-async function startIntegrationRebuild() {
-  try {
-    await ElMessageBox.confirm(
-      "将重新扫描当前所有已接入数据库。未变化文献保持原记录和主键，变化文献更新，新文献插入；已不在来源中的记录会标记为非活动以保留历史快照穿透。",
-      "全量重建文献整合表",
-      { type: "warning", confirmButtonText: "开始重建", cancelButtonText: "取消" },
-    );
-    const state = await rebuildPublicationIntegration();
-    integrationRunning.value = Boolean(state?.running);
-    integrationMessage.value = state?.message || "整合表重建已启动";
-    ElMessage.success("整合表全量重建已启动");
-  } catch (e) {
-    if (e !== "cancel" && e !== "close") ElMessage.error(e.message || "无法启动重建");
-  }
 }
 async function renameCurrentSnapshot() {
   if (!summary.value?.snapshot) return;
@@ -374,6 +353,7 @@ const sourceStatus = (s) =>
 <template>
   <OpenLbBankInventory /><GsaCollectionPanel /><BioProjectCollectionPanel />
   <div class="analysis-page">
+    <PreparationPanel @status="preparationReady = Boolean($event.canBuild)" />
     <section class="page-heading analysis-heading">
       <div>
         <div class="eyebrow"><span></span> RESEARCH INSIGHTS</div>
@@ -408,32 +388,23 @@ const sourceStatus = (s) =>
       </div>
       <div class="filter-submit">
         <el-button @click="load(selectedSnapshotId)" :loading="loading">刷新</el-button>
-        <el-button @click="startIntegrationRebuild" :loading="integrationRunning" :disabled="integrationRunning || snapshotRunning">全量重建整合表</el-button>
         <el-button v-if="summary" @click="renameCurrentSnapshot">修改名称</el-button>
         <el-button v-if="summary" type="danger" plain @click="deleteCurrentSnapshot">删除版本</el-button>
         <el-button
           type="primary"
           @click="openCreateSnapshot"
           :loading="building"
-          :disabled="snapshotRunning || building || integrationRunning"
+          :disabled="snapshotRunning || building || !preparationReady"
           :title="snapshotRunning ? (snapshotStatusMessage || '已有快照正在生成') : ''"
         >生成新快照</el-button>
         <el-button v-if="snapshotRunning || building" type="danger" plain @click="stopSnapshot">停止</el-button>
       </div>
     </section>
-    <el-alert
-      v-if="integrationRunning"
-      :title="integrationMessage || '整合表正在全量重建，完成后可生成快照。'"
-      type="warning"
-      :closable="false"
-      show-icon
-      style="margin-bottom: 16px"
-    />
     <div v-if="error" class="error-panel" role="alert">
       <h3>统计服务暂不可用</h3>
       <p>{{ error }}</p>
       <el-button @click="load">重试</el-button>
-      <el-button type="primary" @click="openCreateSnapshot" :loading="building" :disabled="snapshotRunning || building || integrationRunning">生成新快照</el-button>
+      <el-button type="primary" @click="openCreateSnapshot" :loading="building" :disabled="snapshotRunning || building || !preparationReady">生成新快照</el-button>
     </div>
     <section v-else-if="loading" class="loading-panel analysis-loading">
       <el-skeleton :rows="12" animated />
@@ -453,6 +424,7 @@ const sourceStatus = (s) =>
           </div>
           <AnnualTrendChart :resource-mode="resourceMode" :result="charts.annual" @select="openDimensionPapers($event, 'YEAR')" />
         </section><DistributionChart :resource-mode="resourceMode"
+          show-category-list
           :result="charts.topics"
           title="研究主题分布"
           :subtitle="resourceMode ? '按所属数据库的主题标签统计，同一记录可对应多个主题' : '按文献所属数据库的主题标签统计'"
@@ -593,7 +565,7 @@ const sourceStatus = (s) =>
           <el-input v-model="buildForm.name" maxlength="100" show-word-limit placeholder="请输入快照名称" />
         </el-form-item>
         <el-form-item label="统计数据库">
-          <el-alert title="系统自动统计全部已接入数据库，不再提供来源选择。" type="info" :closable="false" />
+          <el-alert title="使用已完成整理的数据，自动统计全部已接入数据库。" type="info" :closable="false" />
         </el-form-item>
         <el-form-item label="统计对象">
           <el-radio-group v-model="buildForm.includeResources"><el-radio :value="false">仅文献</el-radio><el-radio :value="true">文献＋无文献资源</el-radio></el-radio-group>
@@ -608,7 +580,7 @@ const sourceStatus = (s) =>
       </el-form>
       <template #footer>
         <el-button @click="createDialogOpen = false">取消</el-button>
-        <el-button type="primary" :loading="building" :disabled="snapshotRunning || building || integrationRunning" @click="createSnapshot">开始生成</el-button>
+        <el-button type="primary" :loading="building" :disabled="snapshotRunning || building || !preparationReady" @click="createSnapshot">开始生成</el-button>
       </template>
     </el-dialog>
   </div>

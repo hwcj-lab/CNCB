@@ -3,7 +3,7 @@
 <mapper namespace="com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper">
     <select id="selectOpenLbRecordPage"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
-        SELECT id source_row_id, 'OPENLB' source_code, CONCAT('PMID:',pmid) source_record_key, pmid,doi,title,
+        SELECT id source_row_id, 'OPENLB' source_code, CONCAT('PMID:',pmid) source_record_key, source_url,pmid,doi,title,
         pub_year,journal_title,authors_json,affiliation_info,grants_json,
         keyword_list,mesh_headings_json,cncb_banks_json,is_primary primary_flag
         FROM openlb_publication
@@ -16,7 +16,7 @@
         CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
         WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN CONCAT('PMID:',pmid)
         ELSE CONCAT('DOI:',doi) END source_record_key,
-        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        source_url,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
         authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
         bioproject_accession,cncb_banks_json,is_primary primary_flag
         FROM genbase_publication
@@ -173,7 +173,7 @@
     </delete>
     <select id="selectOpenLbRecordsByPmids"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
-        SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,pmid,doi,title,pub_year,journal_title,
+        SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,source_url,pmid,doi,title,pub_year,journal_title,
         authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
         primary_flag
         FROM openlb_publication WHERE pmid IN
@@ -184,7 +184,7 @@
         SELECT 'GENBASE' source_code,
         CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
         WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
-        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        source_url,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
         authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary
         primary_flag
         FROM genbase_publication WHERE paper_id IN
@@ -192,7 +192,7 @@
     </select>
     <select id="selectOpenLbRecordsByIdentifiers"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
-        SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,pmid,doi,title,pub_year,journal_title,
+        SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,source_url,pmid,doi,title,pub_year,journal_title,
         authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
         primary_flag
         FROM openlb_publication WHERE
@@ -210,7 +210,7 @@
         SELECT 'GENBASE' source_code,
         CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
         WHEN pmid IS NOT NULL THEN CONCAT('PMID:',pmid) ELSE CONCAT('DOI:',doi) END source_record_key,
-        pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        source_url,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
         authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,bioproject_accession,cncb_banks_json,is_primary
         primary_flag
         FROM genbase_publication WHERE
@@ -392,4 +392,19 @@
     <update id="updateSnapshotName">
         UPDATE research_stat_snapshot SET snapshot_name=#{name} WHERE id=#{id}
     </update>
+    <select id="selectGenBaseChangedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+
+        SELECT update_time source_updated_time, id source_row_id,'GENBASE' source_code,
+        CASE WHEN paper_id IS NOT NULL THEN CONCAT('PAPER:',paper_id)
+        WHEN pmid IS NOT NULL AND pmid&lt;&gt;'' THEN CONCAT('PMID:',pmid)
+        ELSE CONCAT('DOI:',doi) END source_record_key,
+        source_url,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,
+        authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,
+        bioproject_accession,cncb_banks_json,is_primary primary_flag
+        FROM genbase_publication
+
+ WHERE (is_primary=1 OR #{related}=TRUE) AND update_time &lt; #{until}
+ AND (update_time &gt; #{time} OR (update_time=#{time} AND id &gt; #{after}))
+ ORDER BY update_time,id LIMIT #{size}
+    </select>
 </mapper>

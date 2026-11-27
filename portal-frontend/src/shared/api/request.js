@@ -18,7 +18,7 @@ request.interceptors.response.use(
         error.response?.data?.message ||
           (error.code === "ECONNABORTED"
             ? "请求超时，请稍后重试"
-            : "无法连接服务，请确认后端已启动"),
+            : ""),
       ),
     ),
 );

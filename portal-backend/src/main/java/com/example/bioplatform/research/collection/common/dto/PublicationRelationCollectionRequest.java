@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.Map;
 
 /**
- * 单篇文献重新采集及递归关联发现请求。
+ * 单篇文献重新采集及单层关联发现请求。
  * identifiers允许不同数据库使用不同唯一键，例如OpenLB使用pmid，GenBase可使用paperId、pmid或doi。
  */
 public record PublicationRelationCollectionRequest(

@@ -3,7 +3,7 @@
 <mapper namespace="com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper">
     <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,CONCAT('PMID:',pmid)
-        source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
         primary_flag FROM ${table} WHERE id&gt;#{after} AND (is_primary=1 OR #{related}=TRUE) ORDER BY id LIMIT #{size}
     </select>
     <select id="count" resultType="long">
@@ -15,7 +15,7 @@
     <select id="identifiers"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,CONCAT('PMID:',pmid)
-        source_record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
         primary_flag FROM ${table} WHERE 1=0
         <if test='pmids.size()>0'>OR pmid IN
             <foreach collection='pmids' item='v' open='(' close=')' separator=','>#{v}</foreach>
@@ -23,5 +23,14 @@
         <if test='dois.size()>0'>OR doi IN
             <foreach collection='dois' item='v' open='(' close=')' separator=','>#{v}</foreach>
         </if>
+    </select>
+    <select id="changedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
+
+        SELECT update_time source_updated_time, id source_row_id,CONCAT('PMID:',pmid)
+        source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
+        primary_flag FROM ${table}
+ WHERE (is_primary=1 OR #{related}=TRUE) AND update_time &lt; #{until}
+ AND (update_time &gt; #{time} OR (update_time=#{time} AND id &gt; #{after}))
+ ORDER BY update_time,id LIMIT #{size}
     </select>
 </mapper>

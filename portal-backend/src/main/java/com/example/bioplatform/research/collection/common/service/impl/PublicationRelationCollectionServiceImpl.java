@@ -221,6 +221,11 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
                 try {
                     processNode(jobId, node, refreshRoot && node.depth() == 0, refreshRelations, delayMs);
                     processedThisRun++;
+                } catch (com.example.bioplatform.research.collection.common.service.relation.PublicationNotFoundException e) {
+                    mapper.skipQueue(node.id(), e.getMessage());
+                    updateRelationStatus(requireJob(jobId).databaseCode(), node.identifierType(), node.identifierValue(), "COMPLETED", e.getMessage());
+                    mapper.incrementJob(jobId, 1, 0, 0);
+                    processedThisRun++;
                 } catch (Exception e) {
                     String error = abbreviate(rootMessage(e), 1000);
                     mapper.failQueue(node.id(), error);
@@ -288,8 +293,15 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         for (Map.Entry<String, String> entry : discovered.entrySet()) {
             String relatedPmid = entry.getKey();
             if (stopRequested.get()) throw new InterruptedException("人工停止");
+            if (com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.isMissing(relatedPmid)) continue;
             if (!com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.wasWritten(job.databaseCode(), relatedPmid)) {
-                RelatedPublicationWriteRow related = fetchOpenLbPublication(relatedPmid, true, delayMs);
+                RelatedPublicationWriteRow related;
+                try {
+                    related = fetchOpenLbPublication(relatedPmid, true, delayMs);
+                } catch (com.example.bioplatform.research.collection.common.service.relation.PublicationNotFoundException e) {
+                    com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.missing(relatedPmid);
+                    continue;
+                }
                 publicationStore.write(job.databaseCode(), List.of(related));
                 com.example.bioplatform.research.collection.common.service.relation.RelationRunCache.written(job.databaseCode(), relatedPmid);
             }

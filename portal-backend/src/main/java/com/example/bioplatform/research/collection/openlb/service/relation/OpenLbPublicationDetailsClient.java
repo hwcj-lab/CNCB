@@ -2,6 +2,7 @@ package com.example.bioplatform.research.collection.openlb.service.relation;
 
 import com.example.bioplatform.research.collection.common.service.impl.PubMedXmlMetadataParser;
 import com.example.bioplatform.research.collection.common.service.relation.RelationPageClient;
+import com.example.bioplatform.research.collection.common.service.relation.PublicationNotFoundException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +26,12 @@ public class OpenLbPublicationDetailsClient {
         var root = json.readTree(pages.get(endpoint + pmid));
         if (!"200".equals(root.path("code").asText()))
             throw new IOException("OpenLB code " + root.path("code").asText());
-        for (JsonNode candidate : root.path("result").path("data"))
+        var records = root.path("result").path("data");
+        if (!records.isArray()) throw new IOException("OpenLB响应结构异常：result.data不是数组");
+        for (JsonNode candidate : records)
             if (pmid.equals(candidate.path("pmid").asText())) return candidate;
         var fallback = PubMedXmlMetadataParser.parse(pages.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&retmode=xml&id=" + pmid), pmid, json);
-        if (fallback == null) throw new IOException("OpenLB及PubMed均未返回PMID " + pmid);
+        if (fallback == null) throw new PublicationNotFoundException(pmid);
         return fallback;
     }
 }

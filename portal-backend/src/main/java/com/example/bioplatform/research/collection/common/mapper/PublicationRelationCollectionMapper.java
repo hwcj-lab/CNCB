@@ -94,6 +94,9 @@ public interface PublicationRelationCollectionMapper {
      */
     int finishQueue(@Param("id") long id, @Param("status") String status);
 
+    /** 跳过明确没有正文数据的根节点，保留原因但不阻断后续队列。 */
+    int skipQueue(@Param("id") long id, @Param("error") String error);
+
     /**
      * 标记队列节点失败，保留错误供人工检查。
      */

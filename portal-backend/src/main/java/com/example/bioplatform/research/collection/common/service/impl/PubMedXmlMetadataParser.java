@@ -27,6 +27,9 @@ public final class PubMedXmlMetadataParser {
         factory.setXIncludeAware(false);
         factory.setExpandEntityReferences(false);
         Document doc = factory.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
+        if (!"PubmedArticleSet".equals(doc.getDocumentElement().getTagName())
+                || doc.getElementsByTagName("ERROR").getLength() > 0)
+            throw new java.io.IOException("PubMed响应结构异常或包含服务错误");
         Element record = null;
         NodeList articles = doc.getElementsByTagName("PubmedArticle");
         for (int i = 0; i < articles.getLength(); i++) {

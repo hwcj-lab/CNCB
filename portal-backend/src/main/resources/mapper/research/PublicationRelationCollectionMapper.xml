@@ -96,6 +96,9 @@
     <update id="finishQueue">UPDATE research_relation_crawl_queue SET status=#{status},last_error=NULL,update_time=NOW()
         WHERE id=#{id}
     </update>
+    <update id="skipQueue">UPDATE research_relation_crawl_queue SET status='SKIPPED',last_error=#{error},update_time=NOW()
+        WHERE id=#{id}
+    </update>
     <update id="failQueue">UPDATE research_relation_crawl_queue SET
         status='FAILED',last_error=#{error},update_time=NOW() WHERE id=#{id}
     </update>

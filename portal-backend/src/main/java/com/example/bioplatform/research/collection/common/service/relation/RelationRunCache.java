@@ -11,6 +11,7 @@ public final class RelationRunCache implements AutoCloseable {
     private static final ThreadLocal<RelationRunCache> CURRENT = new ThreadLocal<>();
     private final Map<String, RelatedResourceData> resources = new LinkedHashMap<>(16, .75f, true);
     private final Set<String> written = new LinkedHashSet<>();
+    private final Set<String> missing = new LinkedHashSet<>();
     private int characters;
 
     private RelationRunCache() {
@@ -63,6 +64,16 @@ public final class RelationRunCache implements AutoCloseable {
         if (cache == null) return;
         if (cache.written.size() >= 10_000) cache.written.remove(cache.written.iterator().next());
         cache.written.add(scope + ":" + pmid);
+    }
+    public static boolean isMissing(String pmid) {
+        var cache = CURRENT.get();
+        return cache != null && cache.missing.contains(pmid);
+    }
+    public static void missing(String pmid) {
+        var cache = CURRENT.get();
+        if (cache == null) return;
+        if (cache.missing.size() >= 10_000) cache.missing.remove(cache.missing.iterator().next());
+        cache.missing.add(pmid);
     }
 
     private static RelatedResourceData copy(RelatedResourceData value) {

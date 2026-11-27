@@ -86,6 +86,7 @@
         UPDATE research_relation_crawl_queue SET status='PENDING',last_error='应用中断后恢复',update_time=NOW()
         WHERE job_id=#{jobId} AND status='RUNNING'
     </update>
+    <!-- 只消费根节点depth=0；发现的目标登记为终点，不进入后续递归。 -->
     <select id="findNextPending" resultType="com.example.bioplatform.research.collection.common.dto.RelationQueueNode">
         SELECT id,job_id,identifier_type,identifier_value,depth FROM research_relation_crawl_queue
         WHERE job_id=#{jobId} AND status='PENDING' AND depth=0 ORDER BY id LIMIT 1
@@ -96,6 +97,7 @@
     <update id="finishQueue">UPDATE research_relation_crawl_queue SET status=#{status},last_error=NULL,update_time=NOW()
         WHERE id=#{id}
     </update>
+    <!-- 只有明确无正文数据的根节点进入SKIPPED；网络或服务错误仍保留FAILED供续传。 -->
     <update id="skipQueue">UPDATE research_relation_crawl_queue SET status='SKIPPED',last_error=#{error},update_time=NOW()
         WHERE id=#{id}
     </update>
@@ -205,6 +207,7 @@
         openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
         source_hash=VALUES(source_hash)
     </insert>
+    <!-- 左右端点已由服务层规范排序，因此反向发现不会产生另一条相同无序边。 -->
     <insert id="upsertRelation">
         INSERT INTO research_publication_relation(database_code,left_identifier_type,left_identifier,
         right_identifier_type,right_identifier,relation_type,evidence_url,discovery_depth,active,last_seen_run_id,last_seen_time)

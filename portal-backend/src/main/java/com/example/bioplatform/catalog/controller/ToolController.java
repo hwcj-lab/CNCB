@@ -11,17 +11,17 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/** 在线工具目录接口。 */
 @RestController
 @RequestMapping("/api/tools")
 @RequiredArgsConstructor
 @Validated
-/** 在线工具目录接口。 */
 public class ToolController {
     private final CatalogService service;
 
+    /** 按内部主键查询工具详情及官方跳转地址。 */
     @Operation(summary = "工具目录详情")
     @GetMapping("/{id}")
-    /** 按内部主键查询工具详情及官方跳转地址。 */
     public ApiResponse<OnlineTool> detail(@PathVariable @Min(1) Long id) {
         return ApiResponse.ok(service.tool(id));
     }

@@ -6,9 +6,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 在线分析工具及其调用入口；URL 来自已记录的官方目录。 */
 @Data
 @TableName("online_tool")
-/** 在线分析工具及其调用入口；URL 来自已记录的官方目录。 */
 public class OnlineTool {
     @TableId(type = IdType.AUTO)
     private Long id;

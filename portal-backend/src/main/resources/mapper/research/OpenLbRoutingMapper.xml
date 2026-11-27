@@ -71,6 +71,7 @@
         VALUES(#{pmid},#{idx},#{name},#{accession},#{link},#{db},#{bankPmid}) ON DUPLICATE KEY UPDATE
         name=VALUES(name),accession=VALUES(accession),link=VALUES(link),db=VALUES(db),bank_pmid=VALUES(bank_pmid)
     </insert>
+    <!-- records是cncbBanks盘点条目数；publications是这些条目涉及的不同查询PMID数，不是实际来源表总行数。 -->
     <select id="summary" resultType="map">
         SELECT db,COUNT(*) records,COUNT(DISTINCT pmid) publications FROM openlb_bank_inventory GROUP BY db ORDER BY
         records DESC

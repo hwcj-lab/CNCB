@@ -25,6 +25,9 @@ public final class PublicationMetadataProcessor {
     public record Output(Set<AuthorIdentity> authors, Set<String> institutions, Set<String> funds, Set<String> topics) {
     }
 
+    /**
+     * 从统一输入独立提取作者机构、资助方、主题及来源信息；纯本地转换，不访问网络或数据库。
+     */
     public Output parse(Input input, Map<String, String> dictionary) {
         return new Output(ordered(authorWithInstitutions(input)), ordered(values(input, "INSTITUTION", dictionary)), ordered(values(input, "FUND", dictionary)), ordered(publicationTopics(input)));
     }
@@ -73,6 +76,9 @@ public final class PublicationMetadataProcessor {
         return result;
     }
 
+    /**
+     * 把单个作者对应的机构拆成作者机构身份；机构归属保持在作者层级，不按整篇机构列表交叉组合。
+     */
     private Set<AuthorIdentity> authorWithInstitutions(Input publication) {
         LinkedHashSet<AuthorIdentity> result = new LinkedHashSet<>();
         if (!notBlank(publication.authorsJson)) return result;

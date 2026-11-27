@@ -4,8 +4,8 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import org.springframework.context.annotation.*;
 
-@Configuration
 /** Swagger/OpenAPI 元数据配置。 */
+@Configuration
 public class OpenApiConfig {
     /**
      * 声明平台接口文档的标题、版本及数据真实性说明。

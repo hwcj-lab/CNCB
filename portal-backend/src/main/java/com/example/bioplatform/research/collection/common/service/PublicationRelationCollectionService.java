@@ -7,7 +7,7 @@ import com.example.bioplatform.research.collection.common.vo.RelatedPublicationP
 
 
 /**
- * OpenLB和GenBase单篇文献重新采集及递归关联发现服务。
+ * 面向已注册来源的单篇刷新及单层关联采集服务；来源差异通过适配器处理。
  */
 public interface PublicationRelationCollectionService {
     /**

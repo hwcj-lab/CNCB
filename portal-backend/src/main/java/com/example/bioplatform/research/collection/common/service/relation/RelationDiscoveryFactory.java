@@ -20,6 +20,9 @@ public class RelationDiscoveryFactory {
         this.json = json;
     }
 
+    /**
+     * 依次尝试可处理当前元数据的策略；工厂只选择路径，不在内部写来源表或递归请求。
+     */
     public RelationDiscoveryResult discover(RelationDiscoveryInput input, RelationDiscoveryStrategy.BeforeRequest control) throws Exception {
         for (var strategy : strategies) if (strategy.supports(input)) return strategy.discover(input, control);
         return new RelationDiscoveryResult("NONE", Map.of(), List.of(), json.createArrayNode());

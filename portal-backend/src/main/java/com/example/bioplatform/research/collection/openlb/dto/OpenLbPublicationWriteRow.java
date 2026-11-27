@@ -4,14 +4,14 @@ package com.example.bioplatform.research.collection.openlb.dto;
 import lombok.Builder;
 import lombok.Data;
 
-@Data
-@lombok.NoArgsConstructor
-@lombok.AllArgsConstructor
-@Builder
 /**
  * OpenLB API 数据的批量写入模型。
  * 保留规范化检索字段和原始 JSON，便于后续补充解析而无需重新采集。
  */
+@Data
+@lombok.NoArgsConstructor
+@lombok.AllArgsConstructor
+@Builder
 public class OpenLbPublicationWriteRow {
     private Long id;
     private String pmid;

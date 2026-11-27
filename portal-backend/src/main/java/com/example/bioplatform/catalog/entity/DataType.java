@@ -5,9 +5,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 可扩展的数据类型标签，用于推荐页面导航与数据库归类。 */
 @Data
 @TableName("data_type")
-/** 可扩展的数据类型标签，用于推荐页面导航与数据库归类。 */
 public class DataType {
     @TableId(type = IdType.AUTO)
     private Long id;

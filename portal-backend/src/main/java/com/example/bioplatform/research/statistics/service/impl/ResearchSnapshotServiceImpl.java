@@ -29,7 +29,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 基于自动注册来源构建不可变科研统计快照。
+ * 旧版文献驱动快照实现，保留用于兼容和对照；当前默认Spring服务为PreparedSnapshotService。
  */
 @RequiredArgsConstructor
 public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
@@ -664,6 +664,9 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         throw new IllegalStateException("来源记录缺少业务唯一值: " + record.getSourceCode());
     }
 
+    /**
+     * 清理DOI前缀及大小写，形成用于匹配的规范化值；不是联网解析DOI。
+     */
     private String normalizeDoi(String doi) {
         return doi.trim().toLowerCase(Locale.ROOT).replaceFirst("^https?://(dx\\.)?doi\\.org/", "").replaceFirst("^doi:\\s*", "");
     }
@@ -696,6 +699,9 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         mapper.deleteIncompleteSnapshotDimensions();
     }
 
+    /**
+     * 应用退出时通知工作线程停止并等待收尾，超时后中断；已提交的数据库断点保留。
+     */
     @PreDestroy
     public void shutdown() {
         executor.shutdownNow();

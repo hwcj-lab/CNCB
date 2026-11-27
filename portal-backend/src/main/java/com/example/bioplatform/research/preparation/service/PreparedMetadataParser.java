@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 
 /**
- * Pure, bounded per-document normalization. No upstream requests or persistent person entity.
+ * 逐文献的纯本地解析器；分别构造五类成员，不联网、不保存跨文献作者实体，内存仅保留当前文献。
  */
 @Component
 public class PreparedMetadataParser {
@@ -24,6 +24,9 @@ public class PreparedMetadataParser {
         processor = new PublicationMetadataProcessor(json);
     }
 
+    /**
+     * 把受支持的维度名映射为固定成员表名；拒绝任意动态表名输入。
+     */
     public static String table(String type) {
         if (!TYPES.contains(type)) throw new IllegalArgumentException("Unknown member type");
         return "research_prepared_" + type.toLowerCase(Locale.ROOT);
@@ -32,6 +35,9 @@ public class PreparedMetadataParser {
     public record Parsed(Map<String, List<PreparedMember>> members, String contentHash) {
     }
 
+    /**
+     * 纯函数式拆分一篇记录的作者机构、独立机构、资助方、主题和年份；每类按成员键去重，避免维度交叉产生笛卡尔积。
+     */
     public Parsed parse(SourcePublicationRecord row, Map<String, String> dictionary) {
         validate(row.getAuthorsJson());
         validate(row.getGrantsJson());
@@ -61,6 +67,7 @@ public class PreparedMetadataParser {
         int order = 0;
         for (var author : authors) {
             order++;
+            // 只有其他作者的已知机构唯一时才继承；存在多个不同机构则继续保留未知。
             String selected = author.institution() == null && known.size() == 1 ? known.iterator().next() : author.institution();
             String[] institutions = selected == null ? new String[]{
                     ""
@@ -76,6 +83,7 @@ public class PreparedMetadataParser {
             }
         }
         // Include every author's affiliation, including when other authors have pre-normalized names.
+        // 机构成员按文献独立去重，同机构多位作者不能让机构文献数重复增加。
         output.institutions().forEach(v -> {
             for (String name : v.split(";\\s*")) if (!name.isBlank()) add(values, "INSTITUTION", name);
         });
@@ -95,6 +103,9 @@ public class PreparedMetadataParser {
         }
     }
 
+    /**
+     * 提前检查看起来是JSON的载荷；格式异常让当前整理批次回滚，避免写入不完整成员。
+     */
     private void validate(String value) {
         if (value == null || value.isBlank()) return;
         String v = value.trim();
@@ -105,6 +116,9 @@ public class PreparedMetadataParser {
         }
     }
 
+    /**
+     * 兼容作者数组及嵌套对象，提取实际作者节点；不把整篇机构随意分配给所有作者。
+     */
     private void authorNodes(JsonNode node, List<JsonNode> out) {
         if (node == null || node.isNull()) return;
         if (node.isTextual()) {
@@ -129,6 +143,9 @@ public class PreparedMetadataParser {
         });
     }
 
+    /**
+     * 规范化大小写及空白后生成成员摘要；该摘要用于同维度分组，不代表已验证的自然人身份。
+     */
     private static PreparedMember member(String key, String label) {
         var m = new PreparedMember();
         m.setMemberKey(PublicationValues.sha(key.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ")));

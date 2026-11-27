@@ -23,11 +23,17 @@ public class BioProjectRelatedResourceResolver implements RelatedResourceResolve
     private final RelatedResourceHttpClient http;
     private final ObjectMapper json;
 
+    /**
+     * 声明本解析器支持的cncbBanks.db名称及别名，由公共工厂匹配。
+     */
     @Override
     public List<String> supportedDatabaseNames() {
         return List.of("BioProject", "Biological Project Library");
     }
 
+    /**
+     * 读取本资源明确关联的出版记录及基金，返回统一结构；发现结果由公共采集流程去重、入库。
+     */
     @Override
     public RelatedResourceData findRelatedPublications(String accession, String url) throws Exception {
         String code = ResourcePublicationParser.accession(accession, url, "PRJ(?:CA|NA|EB|DA)[A-Z0-9]+");

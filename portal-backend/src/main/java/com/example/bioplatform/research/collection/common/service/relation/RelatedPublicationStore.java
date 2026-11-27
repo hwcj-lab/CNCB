@@ -30,6 +30,9 @@ public class RelatedPublicationStore {
         this.writers = writers.stream().sorted(Comparator.comparingInt(RelatedPublicationWriter::priority)).toList();
     }
 
+    /**
+     * 合并该来源已有作者、基金及资源链接，交给来源写入器；仅依据明确归属提升本库标记，随后同步旧全量整合表。
+     */
     public void write(String databaseCode, List<RelatedPublicationWriteRow> rows) {
         // 刷新/关联发现不能清空主采集已经保存的项目链接、署名机构和基金。
         var prior = sourceRegistry.require(databaseCode).loadRecordsByIdentifiers(rows.stream().map(RelatedPublicationWriteRow::pmid).filter(Objects::nonNull).toList(), rows.stream().map(RelatedPublicationWriteRow::doi).filter(Objects::nonNull).toList());
@@ -56,6 +59,9 @@ public class RelatedPublicationStore {
                 rows.stream().map(RelatedPublicationWriteRow::doi).filter(Objects::nonNull).toList());
     }
 
+    /**
+     * 计算稳定内容摘要，用于增量比较及唯一键辅助。
+     */
     private static String sha256(String value) {
         return com.example.bioplatform.research.common.PublicationValues.sha(value);
     }

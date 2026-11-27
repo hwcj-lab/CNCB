@@ -25,14 +25,23 @@ public class CncbBanksDiscoveryStrategy implements RelationDiscoveryStrategy {
         return "CNCB_BANKS";
     }
 
+    /**
+     * 返回策略选择优先级，用于在来源专用实现和通用实现之间确定处理顺序。
+     */
     public int priority() {
         return 100;
     }
 
+    /**
+     * 判断当前来源或输入能否交给本实现处理；专用实现优先于通用回退实现。
+     */
     public boolean supports(RelationDiscoveryInput input) {
         return !links(input.cncbBanksJson()).isEmpty();
     }
 
+    /**
+     * 按db选择资源解析器，复用同轮资源结果；最后排除根PMID并按目标PMID去重，保留证据链接。
+     */
     public RelationDiscoveryResult discover(RelationDiscoveryInput input, BeforeRequest control) throws Exception {
         Map<String, String> discovered = new LinkedHashMap<>();
         Map<String, JsonNode> references = new LinkedHashMap<>();

@@ -5,8 +5,8 @@ import lombok.Data;
 
 import java.util.List;
 
-@Data
 /** CNCB 跨库搜索 databases 数组中本平台实际使用的字段。 */
+@Data
 public class SearchDatabaseHit {
     /**
      * 上游数据库业务标识，对应本地 database_resource.db_id。

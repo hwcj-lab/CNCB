@@ -9,9 +9,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.validation.BindException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+/** 将控制器异常转换为统一响应，并避免向客户端泄露堆栈或连接信息。 */
 @Slf4j
 @RestControllerAdvice
-/** 将控制器异常转换为统一响应，并避免向客户端泄露堆栈或连接信息。 */
 public class GlobalExceptionHandler {
     /**
      * 处理服务层明确声明的业务错误。

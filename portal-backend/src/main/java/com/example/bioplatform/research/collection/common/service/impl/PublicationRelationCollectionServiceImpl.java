@@ -25,7 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 单文献刷新及递归关联发现实现。
+ * 单文献刷新及单层关联发现实现；只处理根队列，明确无数据跳过，服务异常保留断点。
  * <p>只有人工调用start/resume才会运行；队列和visited均持久化，应用重启不会丢失进度。</p>
  */
 @Service
@@ -406,6 +406,9 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         return new BusinessException(HttpStatus.CONFLICT, "RELATION_JOB_RUNNING", message);
     }
 
+    /**
+     * 清理DOI前缀及大小写，形成用于匹配的规范化值；不是联网解析DOI。
+     */
     private static String normalizeDoi(String value) {
         return value.trim().replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/", "").toLowerCase(Locale.ROOT);
     }

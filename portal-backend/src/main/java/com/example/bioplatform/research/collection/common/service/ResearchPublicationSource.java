@@ -29,7 +29,7 @@ public interface ResearchPublicationSource {
     }
 
     /**
-     * 使用来源表的稳定游标分页读取；快照任务只保留当前批次。
+     * 按来源稳定游标分页读取；新流程供数据整理使用，旧整合流程也可复用；只保留当前批次。
      */
     List<SourcePublicationRecord> loadRecordsPage(boolean includeRelated, long afterId, int pageSize);
 
@@ -44,7 +44,7 @@ public interface ResearchPublicationSource {
     long countRecords(boolean includeRelated);
 
     /**
-     * 查询来源中实际存在的年份，快照构建据此预建少量年度维度。
+     * 查询来源实际存在的年份；供来源读取和旧版快照使用，新版年度统计读取prepared_year。
      */
     List<Integer> distinctYears(boolean includeRelated);
 
@@ -54,12 +54,15 @@ public interface ResearchPublicationSource {
     List<SourcePublicationRecord> loadRecordsBySourceKeys(List<String> sourceKeys);
 
     /**
-     * Optional ordered change stream; the existing collection/full-scan contract remains unchanged.
+     * 可选的增量读取能力；不支持时保持原采集及全量扫描契约，由整理任务退回全量。
      */
     default boolean supportsIncremental() {
         return false;
     }
 
+    /**
+     * 按更新时间和ID组成的游标读取变更，严格排除时间上界；读取顺序必须与整理游标校验一致。
+     */
     default List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
                                                                  java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
         throw new UnsupportedOperationException("Source does not provide update_time/id pagination: " + sourceCode());

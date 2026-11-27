@@ -11,13 +11,33 @@ import java.util.List;
  */
 @Mapper
 public interface RoutedPublicationMapper {
+    /**
+     * 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。
+     * SQL定义见 RoutedPublicationMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> page(@Param("table") String table, @Param("related") boolean related, @Param("after") long after, @Param("size") int size);
 
+    /**
+     * 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。
+     * SQL定义见 RoutedPublicationMapper.xml 中同名语句。
+     */
     long count(@Param("table") String table, @Param("related") boolean related);
 
+    /**
+     * 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。
+     * SQL定义见 RoutedPublicationMapper.xml 中同名语句。
+     */
     List<Integer> years(@Param("table") String table, @Param("related") boolean related);
 
+    /**
+     * 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。
+     * SQL定义见 RoutedPublicationMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> identifiers(@Param("table") String table, @Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
 
+    /**
+     * 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。
+     * SQL定义见 RoutedPublicationMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> changedPage(@Param("table") String table, @Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

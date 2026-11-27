@@ -20,9 +20,9 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/** 目录服务实现，使用批量关系查询组装页面模型并避免 N+1 查询。 */
 @Service
 @RequiredArgsConstructor
-/** 目录服务实现，使用批量关系查询组装页面模型并避免 N+1 查询。 */
 public class CatalogServiceImpl implements CatalogService {
     private final DatabaseMapper databases;
     private final ToolMapper tools;

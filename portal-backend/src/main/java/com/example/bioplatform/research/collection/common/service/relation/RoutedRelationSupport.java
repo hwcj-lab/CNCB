@@ -18,10 +18,16 @@ import java.util.Map;
 public class RoutedRelationSupport implements RelatedPublicationWriter, RelationIdentifierResolver {
     private final PublicationRelationCollectionMapper mapper;
 
+    /**
+     * 判断当前来源或输入能否交给本实现处理；专用实现优先于通用回退实现。
+     */
     public boolean supports(String database) {
         return true;
     }
 
+    /**
+     * 返回策略选择优先级，用于在来源专用实现和通用实现之间确定处理顺序。
+     */
     public int priority() {
         return 1000;
     }

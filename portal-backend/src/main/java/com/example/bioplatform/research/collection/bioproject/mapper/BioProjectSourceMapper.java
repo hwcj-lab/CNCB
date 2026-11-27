@@ -13,19 +13,43 @@ import java.util.List;
 public interface BioProjectSourceMapper {
 
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> page(@Param("related") boolean related, @Param("after") long after, @Param("size") int size);
 
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     long count(boolean related);
 
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     List<Integer> years(boolean related);
 
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> identifiers(@Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
 
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> keys(@Param("keys") List<String> keys);
 
+    /**
+     * 查询本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 BioProjectSourceMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> changedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

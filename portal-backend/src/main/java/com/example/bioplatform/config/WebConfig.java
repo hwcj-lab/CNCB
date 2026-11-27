@@ -4,8 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.*;
 
-@Configuration
 /** Web 层公共配置，目前仅开放受控来源对 API 的跨域访问。 */
+@Configuration
 public class WebConfig implements WebMvcConfigurer {
     @Value("${app.cors-origins}")
     private String[] origins;

@@ -4,6 +4,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+/**
+ * 按来源选择唯一值解释器；专用解释器优先，公共关联队列不硬编码各库业务主键。
+ */
 @Component
 public class RelationIdentifierFactory {
     private final List<RelationIdentifierResolver> resolvers;

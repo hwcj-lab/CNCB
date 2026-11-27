@@ -30,6 +30,9 @@ public class OpenLbRoutingService {
         return Map.of("processed", rows.size(), "nextAfterId", rows.isEmpty() ? after : rows.get(rows.size() - 1).getId(), "pmids", rows.stream().map(OpenLbPublicationWriteRow::getPmid).toList());
     }
 
+    /**
+     * 按每个cncbBanks.db匹配启用路由；同篇可写多个来源，空或未知路由保留在OpenLB暂存表。
+     */
     public void route(List<OpenLbPublicationWriteRow> rows) {
         Map<String, String> targets = new HashMap<>();
         for (var route : mapper.routes())

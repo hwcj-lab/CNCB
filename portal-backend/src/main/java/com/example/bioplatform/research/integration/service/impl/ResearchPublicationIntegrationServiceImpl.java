@@ -76,6 +76,9 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         sync(rows);
     }
 
+    /**
+     * 根据指定来源的业务键同步无PMID记录；不要求用标题猜测PMID。
+     */
     @Override
     public synchronized void syncSourceKeys(String code, List<String> keys) {
         if (keys == null || keys.isEmpty()) return;
@@ -252,6 +255,9 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         return values.stream().filter(ResearchPublicationIntegrationServiceImpl::notBlank).map(String::trim).distinct().toList();
     }
 
+    /**
+     * 清理DOI前缀及大小写，形成用于匹配的规范化值；不是联网解析DOI。
+     */
     private static String normalizeDoi(String doi) {
         return doi == null ? null : doi.trim().replaceFirst("(?i)^https?://(dx\\.)?doi\\.org/", "").replaceFirst("(?i)^doi:\\s*", "").toLowerCase(Locale.ROOT);
     }
@@ -287,6 +293,9 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         return value == null ? "" : String.valueOf(value);
     }
 
+    /**
+     * 计算稳定内容摘要，用于增量比较及唯一键辅助。
+     */
     private static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));

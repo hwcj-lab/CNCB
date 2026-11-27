@@ -16,6 +16,10 @@ import java.util.List;
  */
 @Mapper
 public interface PublicationRelationCollectionMapper {
+    /**
+     * 更新本方法指定的记录；涉及bioproject_publication表。
+     * SQL定义见 PublicationRelationCollectionMapper.xml 中同名语句。
+     */
     int updateBioProjectSourceGrants(@Param("identifierType") String type, @Param("identifier") String key, @Param("grantsJson") String grants);
 
     /**

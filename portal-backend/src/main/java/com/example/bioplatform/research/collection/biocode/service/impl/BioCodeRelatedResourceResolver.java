@@ -25,11 +25,17 @@ public class BioCodeRelatedResourceResolver implements RelatedResourceResolver {
     private final ObjectMapper json;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 
+    /**
+     * 声明本解析器支持的cncbBanks.db名称及别名，由公共工厂匹配。
+     */
     @Override
     public List<String> supportedDatabaseNames() {
         return List.of("BioCode", "Biological Tool Codes");
     }
 
+    /**
+     * 读取本资源明确关联的出版记录及基金，返回统一结构；发现结果由公共采集流程去重、入库。
+     */
     @Override
     public RelatedResourceData findRelatedPublications(String accession, String officialUrl) throws Exception {
         String id = accession == null ? "" : accession.trim().replaceFirst("(?i)^BT", "");

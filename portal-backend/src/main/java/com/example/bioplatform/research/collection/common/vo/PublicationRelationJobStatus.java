@@ -4,7 +4,7 @@ package com.example.bioplatform.research.collection.common.vo;
 import java.time.LocalDateTime;
 
 /**
- * 关联文献递归采集作业状态。
+ * 单层关联作业状态；processedCount为处理次数，discoveredCount为新增队列标识数，relationCount为关系写入累计次数，均不等于新增入库篇数。
  */
 public record PublicationRelationJobStatus(
         boolean processRunning,

@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 人工恢复中断快照的管理入口；恢复前先确认旧构建进程已退出。
+ */
 @RestController
 @RequiredArgsConstructor
 public class PreparedSnapshotRecoveryController {

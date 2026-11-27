@@ -7,10 +7,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** CNCB 或合作方数据库资源，以及仅用于返回的类型和工具关联信息。 */
 @Data
 @TableName("database_resource")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-/** CNCB 或合作方数据库资源，以及仅用于返回的类型和工具关联信息。 */
 public class DatabaseResource {
     @TableId(type = IdType.AUTO)
     private Long id;

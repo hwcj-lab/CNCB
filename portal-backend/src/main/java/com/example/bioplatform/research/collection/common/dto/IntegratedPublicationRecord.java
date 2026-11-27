@@ -4,7 +4,7 @@ package com.example.bioplatform.research.collection.common.dto;
 import lombok.Data;
 
 /**
- * 已全局去重的整合文献；快照生成直接读取此对象，不在快照流程中重写整合表。
+ * 旧全量整合表的文献读取模型；新快照使用prepared整理表，本对象仍用于兼容整合与旧统计。
  */
 @Data
 public class IntegratedPublicationRecord {

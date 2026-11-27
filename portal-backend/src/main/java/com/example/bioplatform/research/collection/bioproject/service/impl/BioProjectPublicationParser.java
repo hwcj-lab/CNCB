@@ -32,6 +32,9 @@ public final class BioProjectPublicationParser {
         return seed;
     }
 
+    /**
+     * 为业务字符串生成稳定摘要，便于索引和比较；摘要不能替代原始业务含义。
+     */
     public static String sha(String value) {
         return com.example.bioplatform.research.common.PublicationValues.sha(value);
     }

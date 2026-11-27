@@ -88,6 +88,10 @@ public interface GenBaseCollectionMapper {
      */
     int markEnrichmentRunning(@Param("paperIds") List<Long> paperIds);
 
+    /**
+     * 查询本方法指定的记录；涉及genbase_publication表。在调用方事务内加行锁，防止并发补全覆盖。
+     * SQL定义见 GenBaseCollectionMapper.xml 中同名语句。
+     */
     List<GenBasePmidTask> lockEnrichment(@Param("paperIds") List<Long> paperIds);
 
     /**

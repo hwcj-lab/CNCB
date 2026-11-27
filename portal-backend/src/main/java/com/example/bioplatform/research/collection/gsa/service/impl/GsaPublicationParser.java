@@ -63,6 +63,9 @@ public final class GsaPublicationParser {
         return "null".equalsIgnoreCase(v) ? "" : v;
     }
 
+    /**
+     * 清理DOI前缀及大小写，形成用于匹配的规范化值；不是联网解析DOI。
+     */
     public static String normalizeDoi(String doi) {
         return doi.trim().replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/+", "").toLowerCase(Locale.ROOT);
     }
@@ -78,6 +81,9 @@ public final class GsaPublicationParser {
         return List.copyOf(result);
     }
 
+    /**
+     * 为业务字符串生成稳定摘要，便于索引和比较；摘要不能替代原始业务含义。
+     */
     public static String sha(String text) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));

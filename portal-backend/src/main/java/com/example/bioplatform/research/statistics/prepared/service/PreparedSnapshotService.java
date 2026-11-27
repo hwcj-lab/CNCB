@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * Snapshots read only prepared facts/members. No raw JSON parsing or per-snapshot member copies.
+ * 默认快照实现：读取固定修订的整理表，不重新解析原始JSON。总量与分库共用算法，只改变来源范围。
  */
 @Service
 @RequiredArgsConstructor
@@ -50,6 +50,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
     private volatile String message = "先采集，再整理，最后生成快照";
     private static final List<String> TYPES = List.of("YEAR", "AUTHOR", "INSTITUTION", "FUND", "TOPIC", "DATABASE");
 
+    /**
+     * 先取得可发布整理修订，再冻结来源名称、分类映射和统计选项，创建BUILDING快照并异步聚合。
+     */
     @Override
     public synchronized ResearchSnapshotStatus startBuild(ResearchSnapshotBuildRequest request) {
         long revision = preparation.requireReady();
@@ -93,6 +96,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 按已启用分类和已确认数据库映射构造分类范围；无匹配来源的分类也保留，后续显示0。
+     */
     private Map<String, List<String>> topicScopes(Map<String, String> names) {
         Map<String, List<String>> result = new LinkedHashMap<>();
         var mappings = mapper.selectConfirmedDatabaseTopics();
@@ -103,6 +109,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return result;
     }
 
+    /**
+     * 先计算全局覆盖量，再依次计算TOTAL及各来源的五类维度；全部成功后才回写汇总量并发布快照。
+     */
     private void build(long id) {
         try {
             var snapshot = detail(id);
@@ -155,6 +164,7 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
             q.setSourceFilter(new ArrayList<>(topicSources));
             int topic = exact(prepared.count(q));
             checkStopped();
+            // BUILDING期间汇总字段仍为初始值；所有范围聚合成功后才一次性回写并发布。
             mapper.markSuccess(id, total, resources, year, topic, author, institution, fund);
             message = "快照生成完成";
         } catch (Stopped ex) {
@@ -172,6 +182,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 保存单个年度、来源或总分类统计点；零计数分类也写入，不在此处过滤。
+     */
     private void save(long id, String scope, String type, String key, String label, int count) {
         var row = new ResearchSnapshotDimension();
         row.setScopeCode(scope);
@@ -188,6 +201,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return status();
     }
 
+    /**
+     * 清理已中断且未发布的构建状态；不会把部分统计结果直接标记为成功。
+     */
     public synchronized ResearchSnapshotStatus recover() {
         if (running.get()) throw conflict("当前进程仍在生成快照");
         var building = mapper.selectAnyBuildingSnapshot();
@@ -198,6 +214,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return status();
     }
 
+    /**
+     * 组合当前进程运行标记及数据库持久化进度，供前端轮询；不启动新任务。
+     */
     @Override
     public ResearchSnapshotStatus status() {
         var building = mapper.selectAnyBuildingSnapshot();
@@ -246,6 +265,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return scopedResult(id, scope, limit);
     }
 
+    /**
+     * 读取已发布快照的图表数据；总分类不受Top N限制，其他排名最多读取50项。
+     */
     private ResearchSnapshotResult scopedResult(long id, String code, int limit) {
         var snapshot = detail(id);
         if (!"SUCCESS".equals(snapshot.getStatus())) throw conflict("该快照尚未成功发布");
@@ -299,6 +321,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return scopedResult(id, "TOTAL", limit).dimensions().get(t);
     }
 
+    /**
+     * 按维度及快照修订读取去重文献；关联成员表与document，不依赖旧候选表或旧维度穿透表。
+     */
     @Override
     public ResearchSnapshotPublicationPage dimensionPublications(long id, long dimensionId, int page, int size) {
         var snapshot = detail(id);
@@ -339,12 +364,18 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return detail(id);
     }
 
+    /**
+     * 加载快照冻结的整理输入；旧格式快照没有配置时明确拒绝，不混用旧统计口径。
+     */
     private PreparedSnapshotConfig config(long id) {
         var c = prepared.config(id);
         if (c == null) throw missing("快照不存在或属于旧统计格式；旧数据保留，请从整理结果生成新快照");
         return c;
     }
 
+    /**
+     * 把快照选项转换为查询范围；TOTAL跨来源去重，指定编码只统计该来源。
+     */
     private PreparedScope scope(ResearchSnapshotDetail s, PreparedSnapshotConfig c, String code) {
         var q = new PreparedScope();
         q.setRevision(c.getPreparationRevision());
@@ -403,6 +434,9 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return new BusinessException(HttpStatus.NOT_FOUND, "SNAPSHOT_NOT_FOUND", s);
     }
 
+    /**
+     * 应用退出时通知工作线程停止并等待收尾，超时后中断；已提交的数据库断点保留。
+     */
     @PreDestroy
     public void shutdown() {
         stop.set(true);

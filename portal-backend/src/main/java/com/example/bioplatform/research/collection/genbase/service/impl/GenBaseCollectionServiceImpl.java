@@ -366,6 +366,9 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         }
     }
 
+    /**
+     * 清理DOI前缀及大小写，形成用于匹配的规范化值；不是联网解析DOI。
+     */
     private static String normalizeDoi(String value) {
         value = blankToNull(value);
         if (value == null) return null;

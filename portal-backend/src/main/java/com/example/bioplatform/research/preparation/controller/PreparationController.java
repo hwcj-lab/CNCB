@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
+/**
+ * 数据整理管理入口。仅调度本地原始记录的整理，不负责采集网络数据或自动生成快照。
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/research-preparation")

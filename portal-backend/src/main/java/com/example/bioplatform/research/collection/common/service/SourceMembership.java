@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * An explicit bank-to-source route proves ownership; relation edges alone never do.
+ * 通过明确cncbBanks路由判断本库归属；发现关联边本身不能证明目标文献属于当前来源。
  */
 @Component
 public class SourceMembership {

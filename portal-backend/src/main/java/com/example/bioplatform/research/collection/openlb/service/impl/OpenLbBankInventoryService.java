@@ -26,10 +26,16 @@ public class OpenLbBankInventoryService {
     private final AtomicBoolean running = new AtomicBoolean(), stop = new AtomicBoolean();
     private volatile String message = "未启动";
 
+    /**
+     * 组合当前进程运行标记及数据库持久化进度，供前端轮询；不启动新任务。
+     */
     public Map<String, Object> status() {
         return Map.of("running", running.get(), "message", message, "cursor", Optional.ofNullable(mapper.cursor()).orElse(""));
     }
 
+    /**
+     * 校验请求及运行状态后启动本服务后台流程；HTTP调用不等待全部处理结束，进度通过status查询。
+     */
     public Map<String, Object> start() {
         if (!running.compareAndSet(false, true)) return status();
         stop.set(false);
@@ -39,6 +45,9 @@ public class OpenLbBankInventoryService {
         return status();
     }
 
+    /**
+     * 设置停止请求，由后台在安全边界收尾；不直接删除已持久化的记录和断点。
+     */
     public Map<String, Object> stop() {
         stop.set(true);
         return status();

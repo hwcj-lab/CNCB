@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Local preparation is explicitly scheduled, independent of collectors and snapshot generation.
+ * 独立本地整理服务：读取注册来源，分批维护版本化document及五类成员表。采集不会自动调用；成功后供快照读取。
  */
 @Service
 public class PreparationService {
@@ -61,14 +61,23 @@ public class PreparationService {
     @org.springframework.beans.factory.annotation.Value("${app.research-preparation.overlap-seconds:5}")
     private long overlapSeconds = 5;
 
+    /**
+     * 启动全量扫描或强制重解析；失败、停止任务优先续传原任务，不能静默切换来源范围。
+     */
     public synchronized Map<String, Object> start(PreparationRequest request, boolean rebuild) {
         return begin(request, rebuild ? "REBUILD" : "FULL");
     }
 
+    /**
+     * 按各来源上次成功时间边界启动增量整理；无可靠基线的来源退回全量扫描。
+     */
     public synchronized Map<String, Object> incremental(PreparationRequest request) {
         return begin(request, "INCREMENTAL");
     }
 
+    /**
+     * 统一校验运行互斥与来源列表，在事务内建立任务及扫描计划，再提交后台线程执行。
+     */
     private Map<String, Object> begin(PreparationRequest request, String mode) {
         if (running.get()) throw conflict("整理正在运行");
         PreparationJob old = mapper.latestJob();
@@ -119,6 +128,9 @@ public class PreparationService {
         return status();
     }
 
+    /**
+     * 冻结每个来源的扫描上界；增量下界回退重叠秒数，恢复任务复用已有窗口而不重算。
+     */
     private void initializeCursors(PreparationJob job,
                                    List<com.example.bioplatform.research.collection.common.service.ResearchPublicationSource> sources) {
         var codes = decode(job.getSourceCodesJson());
@@ -146,11 +158,17 @@ public class PreparationService {
         }
     }
 
+    /**
+     * 设置停止请求，由后台在安全边界收尾；不直接删除已持久化的记录和断点。
+     */
     public synchronized Map<String, Object> stop() {
         stop.set(true);
         return status();
     }
 
+    /**
+     * 把进程已退出但数据库仍为RUNNING的任务转成可续传状态；不会重新读取来源数据。
+     */
     public synchronized Map<String, Object> recover() {
         if (running.get()) throw conflict("当前进程仍在运行，不能恢复");
         var job = mapper.latestJob();
@@ -162,6 +180,9 @@ public class PreparationService {
         return status();
     }
 
+    /**
+     * 在一个事务中撤销未发布修订的成员和文献版本，重新打开被它关闭的旧版本；不删除原始采集表。
+     */
     public synchronized Map<String, Object> discard() {
         if (running.get()) throw conflict("先停止当前任务");
         var job = mapper.latestJob();
@@ -180,6 +201,9 @@ public class PreparationService {
         return status();
     }
 
+    /**
+     * 组合进程状态、持久化游标及成功来源覆盖情况；只有无未完成任务且来源齐全时canBuild才为true。
+     */
     public Map<String, Object> status() {
         Map<String, Object> result = new LinkedHashMap<>();
         var job = mapper.latestJob();
@@ -200,6 +224,9 @@ public class PreparationService {
         return result;
     }
 
+    /**
+     * 返回正式快照可读取的成功修订号；当前实现也会阻止整理运行期间生成新快照。
+     */
     public long requireReady() {
         var state = status();
         if (!Boolean.TRUE.equals(state.get("canBuild")))
@@ -207,6 +234,9 @@ public class PreparationService {
         return ((Number) state.get("readyRevision")).longValue();
     }
 
+    /**
+     * 逐来源、逐批整理；每批提交成员和游标，全部结束后校验完整性并生成DOI桥接，再发布SUCCESS。
+     */
     private void run(PreparationJob job) {
         try {
             Map<String, String> routes = new HashMap<>();
@@ -241,6 +271,7 @@ public class PreparationService {
                 }
                 validateCursor(cursor, rows);
                 Map<String, String> dictionary = loadDictionary(rows);
+                // 成员、文献版本及游标同批提交；任何写入失败都回滚，不能先推进断点。
                 tx.executeWithoutResult(state -> processBatch(job, code, rows, dictionary, routes, cursor));
             }
             tx.executeWithoutResult(state -> {
@@ -252,6 +283,7 @@ public class PreparationService {
                     if (invalid > 0) throw new IllegalStateException("整理成员完整性校验失败: " + type);
                 }
                 mapper.deleteIdentities(job.getId());
+                // 此处基于本修订全部有效文献建立DOI桥接，不仅限于本次增量读到的记录。
                 mapper.prepareIdentities(job.getId());
                 finish(job, stop.get() ? "STOPPED" : "SUCCESS", null);
             });
@@ -265,6 +297,9 @@ public class PreparationService {
         }
     }
 
+    /**
+     * 校验来源分页严格递增；增量按更新时间再按ID排序，防止重复页或游标倒退导致死循环。
+     */
     private void validateCursor(PreparationSourceCursor cursor, List<SourcePublicationRecord> rows) {
         long after = cursor.getAfterId();
         LocalDateTime time = cursor.getAfterUpdateTime();
@@ -283,6 +318,9 @@ public class PreparationService {
         }
     }
 
+    /**
+     * 在调用方事务内解析一批记录；内容相同只更新扫描标记，变更则替换版本并写五类成员，最后推进游标。
+     */
     private void processBatch(PreparationJob job, String code, List<SourcePublicationRecord> rows,
                               Map<String, String> dictionary, Map<String, String> routes, PreparationSourceCursor cursor) {
         var hashes = rows.stream().map(row -> PublicationValues.sha(sourceKey(row))).toList();
@@ -352,6 +390,9 @@ public class PreparationService {
         mapper.updateJob(job);
     }
 
+    /**
+     * 同轮未发布版本可删除后替换；已发布旧版本只设置失效修订，保证历史快照仍能读取。
+     */
     private void retire(PreparedDocument previous, long revision) {
         if (Objects.equals(previous.getValidFrom(), revision)) {
             // A source may be observed again after a late commit. Replace its unpublished version atomically.
@@ -361,6 +402,9 @@ public class PreparationService {
         } else mapper.close(previous.getId(), revision);
     }
 
+    /**
+     * 构造来源文献事实；PMID优先，随后DOI或来源业务键；资源始终按来源业务键标识。
+     */
     private PreparedDocument document(String code, SourcePublicationRecord r, long revision, Map<String, String> routes) {
         var d = new PreparedDocument();
         d.setSourceCode(code);
@@ -383,6 +427,9 @@ public class PreparationService {
         return d;
     }
 
+    /**
+     * 仅收集缺少agency的资助编号，分批查询本地基金字典；不在整理时逐篇联网检索基金。
+     */
     private Map<String, String> loadDictionary(List<SourcePublicationRecord> rows) {
         Set<String> ids = new LinkedHashSet<>();
         for (var r : rows) ids.addAll(FundAgencyParser.missingAgencyGrantIds(r.getGrantsJson(), json));
@@ -396,6 +443,9 @@ public class PreparationService {
         return result;
     }
 
+    /**
+     * 持久化整理任务最终状态、错误和结束时间；不是更新快照结果表。
+     */
     private void finish(PreparationJob job, String status, String error) {
         job.setStatus(status);
         job.setErrorMessage(error);
@@ -441,6 +491,9 @@ public class PreparationService {
         return new BusinessException(HttpStatus.CONFLICT, "PREPARATION_NOT_READY", m);
     }
 
+    /**
+     * 应用退出时通知工作线程停止并等待收尾，超时后中断；已提交的数据库断点保留。
+     */
     @PreDestroy
     public void shutdown() {
         stop.set(true);

@@ -3,8 +3,8 @@ package com.example.bioplatform.common;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
-@Getter
 /** 可由业务层主动抛出的异常，携带 HTTP 状态与稳定错误码。 */
+@Getter
 public class BusinessException extends RuntimeException {
     private final HttpStatus status;
     private final String code;

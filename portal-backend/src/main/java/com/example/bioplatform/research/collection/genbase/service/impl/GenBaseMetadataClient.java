@@ -40,6 +40,9 @@ public class GenBaseMetadataClient {
         this.metadata = new PublicationMetadataEnricher(http, json, null);
     }
 
+    /**
+     * 基于已有标识补充元数据并保留原有有效字段；具体网络读取和合并规则由本来源及公共组件共同处理。
+     */
     public GenBaseOpenLbWriteRow enrich(GenBasePmidTask original, long delay, BooleanSupplier stopped, Consumer<String> progress) throws Exception {
         http.configure(delay);
         PublicationEnrichmentTask task = new PublicationEnrichmentTask();

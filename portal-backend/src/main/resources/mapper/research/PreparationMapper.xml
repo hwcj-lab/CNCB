@@ -20,13 +20,16 @@
  INSERT INTO research_prepared_document(source_row_id,source_code,source_key,source_hash,document_key,pmid,doi,title,pub_year,journal_title,source_url,record_kind,resource_accession,gsa_accessions,bioproject_accession,primary_flag,content_hash,seen_run,valid_from)
  VALUES(#{sourceRowId},#{sourceCode},#{sourceKey},#{sourceHash},#{documentKey},#{pmid},#{doi},#{title},#{pubYear},#{journalTitle},#{sourceUrl},#{recordKind},#{resourceAccession},#{gsaAccessions},#{bioprojectAccession},#{primaryFlag},#{contentHash},#{seenRun},#{validFrom})
  </insert>
+ <!-- 五类成员各自独立写入；table来自PreparedMetadataParser维度白名单，不展开维度交叉组合。 -->
  <insert id="insertMembers">
  INSERT INTO ${table}(document_id,source_code,document_key,pmid,doi,source_url,member_key,display_name,author_name,institution_name,author_order,stat_year) VALUES
  <foreach collection="rows" item="r" separator=",">(#{r.documentId},#{r.sourceCode},#{r.documentKey},#{r.pmid},#{r.doi},#{r.sourceUrl},#{r.memberKey},#{r.displayName},#{r.authorName},#{r.institutionName},#{r.authorOrder},#{r.statYear})</foreach>
  </insert>
+ <!-- 仅供全量扫描收尾：增量未读到的记录不能据此判定为删除。 -->
  <update id="expireMissing">UPDATE research_prepared_document SET valid_until=#{revision} WHERE source_code=#{source} AND valid_until IS NULL AND seen_run&lt;&gt;#{revision}</update>
  <update id="expireDisabled">UPDATE research_prepared_document SET valid_until=#{revision} WHERE valid_until IS NULL AND source_code NOT IN <foreach collection="sources" item="s" open="(" close=")" separator=",">#{s}</foreach></update>
  <!-- A DOI shared by conflicting PMIDs is deliberately not used as an identity bridge. -->
+ <!-- 每个成功修订保存一套DOI桥接；COUNT DISTINCT忽略空PMID，多个冲突PMID不会强行合并。 -->
  <insert id="prepareIdentities">INSERT INTO research_prepared_identity(revision,doi,pmid)
  SELECT #{revision},doi,CASE WHEN COUNT(DISTINCT pmid)=1 THEN MIN(pmid) ELSE NULL END
  FROM research_prepared_document WHERE valid_from&lt;=#{revision} AND (valid_until IS NULL OR valid_until&gt;#{revision}) AND doi IS NOT NULL AND record_kind='PUBLICATION' GROUP BY doi

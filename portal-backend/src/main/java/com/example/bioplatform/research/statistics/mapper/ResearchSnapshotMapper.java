@@ -24,14 +24,34 @@ import java.util.List;
  */
 @Mapper
 public interface ResearchSnapshotMapper {
+    /**
+     * 查询本方法指定的记录；涉及research_stat_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     List<IntegratedPublicationRecord> selectIntegratedIdentityMatches(@Param("keys") List<String> keys, @Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
 
+    /**
+     * 更新本方法指定的记录；涉及research_stat_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     int deactivateIntegratedKeys(@Param("keys") List<String> keys);
 
+    /**
+     * 查询本方法指定的记录；涉及research_stat_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     List<IntegratedPublicationRecord> selectIntegratedRecordPageForMode(@Param("includeRelated") boolean related, @Param("includeResources") boolean resources, @Param("afterId") long after, @Param("pageSize") int size);
 
+    /**
+     * 查询本方法指定的记录；涉及research_stat_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     long countIntegratedRecordsForMode(@Param("includeRelated") boolean related, @Param("includeResources") boolean resources);
 
+    /**
+     * 查询本方法指定的记录；涉及research_stat_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     List<Integer> selectIntegratedYearsForMode(@Param("includeRelated") boolean related, @Param("includeResources") boolean resources);
 
     /**
@@ -291,5 +311,9 @@ public interface ResearchSnapshotMapper {
      */
     int updateSnapshotName(@Param("id") long id, @Param("name") String name);
 
+    /**
+     * 查询本方法指定的记录；涉及genbase_publication表。
+     * SQL定义见 ResearchSnapshotMapper.xml 中同名语句。
+     */
     List<SourcePublicationRecord> selectGenBaseChangedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

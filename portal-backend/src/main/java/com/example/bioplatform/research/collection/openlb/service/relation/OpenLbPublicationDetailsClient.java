@@ -22,6 +22,9 @@ public class OpenLbPublicationDetailsClient {
     @Value("${app.openlb.endpoint:https://ngdc.cncb.ac.cn/openlb/api/pmid?pmid=}")
     private String endpoint;
 
+    /**
+     * 先读OpenLB匹配PMID，再以同一PMID回退PubMed；只有正常空响应才作为无数据，限流及格式错误不得被吞掉。
+     */
     public JsonNode read(String pmid) throws Exception {
         var root = json.readTree(pages.get(endpoint + pmid));
         if (!"200".equals(root.path("code").asText()))

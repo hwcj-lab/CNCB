@@ -23,6 +23,9 @@ public class PublicationMetadataEnricher {
     private final ObjectMapper json;
     private final BioProjectRelatedResourceResolver projects;
 
+    /**
+     * 基于已有标识补充元数据并保留原有有效字段；具体网络读取和合并规则由本来源及公共组件共同处理。
+     */
     public PublicationEnrichmentWrite enrich(PublicationEnrichmentTask task, int attempts, BooleanSupplier stop, Consumer<String> progress) throws Exception {
         PublicationEnrichmentWrite out = fromTask(task);
         String pmid = task.getPmid();

@@ -6,9 +6,11 @@
  <select id="config" resultType="com.example.bioplatform.research.statistics.prepared.model.PreparedSnapshotConfig">SELECT * FROM research_prepared_snapshot WHERE snapshot_id=#{id}</select>
  <select id="versions" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">SELECT s.* FROM research_stat_snapshot s JOIN research_prepared_snapshot p ON p.snapshot_id=s.id ORDER BY s.id DESC LIMIT 100</select>
  <select id="latestSuccess" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">SELECT s.* FROM research_stat_snapshot s JOIN research_prepared_snapshot p ON p.snapshot_id=s.id WHERE s.status='SUCCESS' ORDER BY s.id DESC LIMIT 1</select>
+ <!-- 资源保持来源业务键；文献优先自身PMID，其次该修订无歧义DOI桥接，最后使用原document_key。 -->
  <sql id="canonicalKey">CASE WHEN d.record_kind='RESOURCE' THEN d.document_key WHEN COALESCE(d.pmid,i.pmid) IS NOT NULL THEN CONCAT('P:',COALESCE(d.pmid,i.pmid)) ELSE d.document_key END</sql>
  <sql id="key"><choose><when test="q.type == 'CATEGORY'">CONCAT(d.source_code,':',<include refid="canonicalKey"/>)</when><otherwise><include refid="canonicalKey"/></otherwise></choose></sql>
  <sql id="from">research_prepared_document d LEFT JOIN research_prepared_identity i ON i.revision=#{q.revision} AND i.doi=d.doi</sql>
+ <!-- 固定版本区间与来源范围；primary_flag是相对本来源的归属，不是文献的全局固定属性。 -->
  <sql id="eligible">d.valid_from&lt;=#{q.revision} AND (d.valid_until IS NULL OR d.valid_until&gt;#{q.revision})
  AND d.source_code IN <foreach collection="q.sources" item="s" open="(" close=")" separator=",">#{s}</foreach>
  <if test="q.scope != 'TOTAL'">AND d.source_code=#{q.scope}</if>
@@ -27,6 +29,7 @@
  <otherwise>AND m.member_key=#{q.memberKey}</otherwise></choose>
  </if>
  </sql>
+ <!-- 每次只连接一个维度，避免作者、机构、基金互相JOIN放大行数；同成员按不同文献键计数。 -->
  <select id="rank" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension">
  <choose><when test="q.type == 'YEAR'">
  SELECT CAST(chosen_year AS CHAR) dimension_key,CAST(chosen_year AS CHAR) display_name,chosen_year stat_year,COUNT(*) publication_count FROM (
@@ -53,6 +56,7 @@
  INSERT INTO research_stat_dimension(snapshot_id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count) VALUES
  <foreach collection="rows" item="row" separator=",">(#{snapshotId},#{row.scopeCode},#{row.dimensionType},#{row.dimensionKey},#{row.displayName},#{row.authorName},#{row.institutionName},COALESCE(#{row.statYear},0),#{row.publicationCount})</foreach>
  </insert>
+ <!-- 使用与排名相同的版本及去重键；内层先合并同来源，外层再合并跨来源，避免来源信息重复。 -->
  <select id="publications" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication">
  SELECT canonical_key publication_key,MIN(record_kind) record_kind,MIN(resource_accession) resource_accession,MIN(source_url) source_url,MIN(source_url) resource_url,
  MIN(pmid) pmid,MIN(doi) doi,MIN(title) title,MIN(pub_year) pub_year,MIN(journal_title) journal_title,

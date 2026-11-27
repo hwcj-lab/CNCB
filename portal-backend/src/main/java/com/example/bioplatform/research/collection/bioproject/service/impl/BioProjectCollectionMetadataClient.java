@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+/**
+ * BioProject采集的元数据补全门面；把项目出版记录交给公共补全组件，不把项目提交者当论文作者。
+ */
 @Component
 public class BioProjectCollectionMetadataClient {
     private final CollectionHttpTransport http = new CollectionHttpTransport();
@@ -21,6 +24,9 @@ public class BioProjectCollectionMetadataClient {
         delegate = new PublicationMetadataEnricher(http, json, projects);
     }
 
+    /**
+     * 基于已有标识补充元数据并保留原有有效字段；具体网络读取和合并规则由本来源及公共组件共同处理。
+     */
     public BioProjectEnrichmentWrite enrich(BioProjectEnrichmentTask task, BioProjectCollectionStartRequest config, BooleanSupplier stop, Consumer<String> progress) throws Exception {
         http.configure(config.delay());
         var result = new BioProjectEnrichmentWrite();
@@ -28,6 +34,9 @@ public class BioProjectCollectionMetadataClient {
         return result;
     }
 
+    /**
+     * 将已存来源记录转换为统一补全输入，保留作者、基金和项目等既有信息。
+     */
     public static BioProjectEnrichmentWrite fromTask(BioProjectEnrichmentTask task) {
         var result = new BioProjectEnrichmentWrite();
         BeanUtils.copyProperties(PublicationMetadataEnricher.fromTask(task), result);

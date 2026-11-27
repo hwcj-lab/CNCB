@@ -17,16 +17,25 @@ import java.util.Objects;
 public class OpenLbResearchPublicationSource implements ResearchPublicationSource {
     private final ResearchSnapshotMapper mapper;
 
+    /**
+     * 返回该来源是否参与注册和统计选择；停用不代表删除已有采集数据。
+     */
     @Override
     public boolean enabled() {
         return false;
     }
 
+    /**
+     * 返回适配器稳定的数据库编码，用于路由、整理范围和分库统计。
+     */
     @Override
     public String sourceCode() {
         return "OPENLB";
     }
 
+    /**
+     * 返回来源展示名称；统计内部仍使用sourceCode作为身份。
+     */
     @Override
     public String sourceName() {
         return "OpenLB文献库";
@@ -51,11 +60,17 @@ public class OpenLbResearchPublicationSource implements ResearchPublicationSourc
                 : mapper.selectOpenLbRecordsByIdentifiers(safePmids, safeDois);
     }
 
+    /**
+     * 按本来源及关联记录口径计数；此处不是跨数据库的全局去重总量。
+     */
     @Override
     public long countRecords(boolean includeRelated) {
         return mapper.countOpenLbSourceRecords(includeRelated);
     }
 
+    /**
+     * 读取当前来源实际存在的发表年份，缺失年份不凭空推断。
+     */
     @Override
     public List<Integer> distinctYears(boolean includeRelated) {
         return mapper.selectOpenLbYears(includeRelated);

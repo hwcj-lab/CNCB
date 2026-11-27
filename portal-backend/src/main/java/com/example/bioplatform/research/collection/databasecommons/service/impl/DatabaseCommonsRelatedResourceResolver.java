@@ -25,17 +25,26 @@ public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceRe
     private final ObjectMapper json;
     private final RelationPageClient pages;
 
+    /**
+     * 声明本解析器支持的cncbBanks.db名称及别名，由公共工厂匹配。
+     */
     @Override
     public List<String> supportedDatabaseNames() {
         return List.of("Database Commons", "DatabaseCommons");
     }
 
+    /**
+     * 读取本资源明确关联的出版记录及基金，返回统一结构；发现结果由公共采集流程去重、入库。
+     */
     @Override
     public RelatedResourceData findRelatedPublications(String accession, String officialUrl) throws Exception {
         String id = databaseId(accession, officialUrl);
         return RelationRunCache.resource("databasecommons-profile:" + id, () -> loadProfile(id));
     }
 
+    /**
+     * 按dbId取目标资源自身的publicationList；响应中的其他ID只预热缓存，缺少目标时回退其详情页Publications表。
+     */
     private RelatedResourceData loadProfile(String id) throws Exception {
         String url = "https://ngdc.cncb.ac.cn/databasecommons/api/biodb/cited?dbId=" + id;
         JsonNode response = json.readTree(pages.get(url));
@@ -88,6 +97,9 @@ public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceRe
         return new RelatedResourceData(List.copyOf(pmids), json.createArrayNode());
     }
 
+    /**
+     * 从DBC编号或官方详情URL提取数字ID并去掉前导零；两者同时存在却不一致时拒绝猜测。
+     */
     private String databaseId(String accession, String officialUrl) {
         String id = normalizeId(accession == null ? null : accession.trim().replaceFirst("(?i)^DBC", ""));
         String linkId = null;

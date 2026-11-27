@@ -1,6 +1,9 @@
 package com.example.bioplatform.research.collection.bioproject.dto;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * BIOPROJECT独立主采集配置；上游为静态全量JSON，batchSize控制本地写入及补全批次。

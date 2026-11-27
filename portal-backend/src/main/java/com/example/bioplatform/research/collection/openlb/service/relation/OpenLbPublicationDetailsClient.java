@@ -2,11 +2,11 @@ package com.example.bioplatform.research.collection.openlb.service.relation;
 
 import com.example.bioplatform.research.collection.common.service.impl.PubMedXmlMetadataParser;
 import com.example.bioplatform.research.collection.common.service.relation.RelationPageClient;
-import com.example.bioplatform.research.collection.common.service.impl.PubMedXmlMetadataParser;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 

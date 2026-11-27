@@ -1,19 +1,15 @@
 package com.example.bioplatform.research.integration.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
 import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
 import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
-import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 
 /**
  * 无文献资源直接写入全局整合表；不重复保存，不运行采集或猜测PMID。

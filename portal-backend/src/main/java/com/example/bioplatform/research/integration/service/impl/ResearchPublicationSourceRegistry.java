@@ -1,11 +1,7 @@
 package com.example.bioplatform.research.integration.service.impl;
 
-import com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper;
-import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
-import com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper;
 import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.collection.common.vo.ResearchPublicationSourceOption;
-
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;

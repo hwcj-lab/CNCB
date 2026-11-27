@@ -2,7 +2,6 @@ package com.example.bioplatform.research.collection.biocode.service.impl;
 
 import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * BioCode工具详情解析器：BT000004映射为工具接口ID 4。

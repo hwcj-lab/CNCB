@@ -1,10 +1,9 @@
 package com.example.bioplatform.research.collection.genbase.controller;
 
+import com.example.bioplatform.common.ApiResponse;
 import com.example.bioplatform.research.collection.genbase.dto.GenBaseCollectionStartRequest;
 import com.example.bioplatform.research.collection.genbase.service.GenBaseCollectionService;
 import com.example.bioplatform.research.collection.genbase.vo.GenBaseCollectionStatus;
-
-import com.example.bioplatform.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

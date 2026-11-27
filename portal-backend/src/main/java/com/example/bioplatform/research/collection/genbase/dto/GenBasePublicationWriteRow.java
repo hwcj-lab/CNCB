@@ -1,7 +1,9 @@
 package com.example.bioplatform.research.collection.genbase.dto;
 
 
-/** GenBase接口记录的批量写入模型。 */
+/**
+ * GenBase接口记录的批量写入模型。
+ */
 public record GenBasePublicationWriteRow(
         Long paperId,
         String pmid,
@@ -14,5 +16,6 @@ public record GenBasePublicationWriteRow(
         String sourceUrl,
         String rawPayload,
         String sourceHash
-) {}
+) {
+}
 

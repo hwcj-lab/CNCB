@@ -1,15 +1,14 @@
 package com.example.bioplatform.research.collection.genbase.service.impl;
 
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
 import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
-
+import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -88,9 +87,14 @@ public class GenBaseResearchPublicationSource implements ResearchPublicationSour
         return records.values().stream().toList();
     }
 
-    @Override public boolean supportsIncremental() { return true; }
-    @Override public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
-            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
-        return mapper.selectGenBaseChangedPage(related,time,after,until,size);
+    @Override
+    public boolean supportsIncremental() {
+        return true;
+    }
+
+    @Override
+    public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+                                                                java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+        return mapper.selectGenBaseChangedPage(related, time, after, until, size);
     }
 }

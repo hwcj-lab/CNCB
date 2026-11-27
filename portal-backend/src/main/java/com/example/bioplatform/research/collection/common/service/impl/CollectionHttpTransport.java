@@ -3,11 +3,19 @@ package com.example.bioplatform.research.collection.common.service.impl;
 
 import org.springframework.stereotype.Component;
 
-import java.io.*;
-import java.net.*;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.util.function.*;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * 补充采集共用HTTP传输：读超时、全局请求间隔、有限重试及磁盘流式下载。

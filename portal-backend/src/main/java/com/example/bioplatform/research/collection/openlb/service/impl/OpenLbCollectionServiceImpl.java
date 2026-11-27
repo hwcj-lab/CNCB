@@ -1,14 +1,13 @@
 package com.example.bioplatform.research.collection.openlb.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.common.BusinessException;
 import com.example.bioplatform.research.collection.openlb.dto.OpenLbCollectionStartRequest;
 import com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow;
 import com.example.bioplatform.research.collection.openlb.mapper.OpenLbCollectionMapper;
 import com.example.bioplatform.research.collection.openlb.service.OpenLbCollectionService;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.collection.openlb.vo.OpenLbCollectionStatus;
-
-import com.example.bioplatform.common.BusinessException;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
@@ -30,8 +29,12 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * OpenLB 采集流程实现。

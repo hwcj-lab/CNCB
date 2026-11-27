@@ -1,9 +1,8 @@
 package com.example.bioplatform.research.integration.controller;
 
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
-import com.example.bioplatform.research.collection.common.vo.PublicationIntegrationStatus;
-
 import com.example.bioplatform.common.ApiResponse;
+import com.example.bioplatform.research.collection.common.vo.PublicationIntegrationStatus;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

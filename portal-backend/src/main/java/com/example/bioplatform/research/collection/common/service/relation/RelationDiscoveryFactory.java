@@ -1,9 +1,11 @@
 package com.example.bioplatform.research.collection.common.service.relation;
 
-import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 只负责按元数据选发现策略；工厂不包含任何具体数据库解析分支。

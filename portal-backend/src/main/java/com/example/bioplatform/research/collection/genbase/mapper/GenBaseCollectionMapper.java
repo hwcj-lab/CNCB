@@ -4,7 +4,6 @@ import com.example.bioplatform.research.collection.genbase.dto.GenBaseOpenLbWrit
 import com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask;
 import com.example.bioplatform.research.collection.genbase.dto.GenBasePublicationWriteRow;
 import com.example.bioplatform.research.collection.genbase.vo.GenBaseJobState;
-
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

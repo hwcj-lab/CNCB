@@ -20,8 +20,19 @@ public record PublicationRelationCollectionRequest(
         @Min(1) @Max(100000) Integer maxPublications,
         @Min(100) @Max(60000) Long requestDelayMs
 ) {
-    public boolean refreshPublicationOrDefault() { return Boolean.TRUE.equals(refreshPublication); }
-    public boolean refreshRelationsOrDefault() { return refreshRelations == null || refreshRelations; }
-    public int maxPublicationsOrDefault() { return maxPublications == null ? 1000 : maxPublications; }
-    public long requestDelayMsOrDefault() { return requestDelayMs == null ? 500L : requestDelayMs; }
+    public boolean refreshPublicationOrDefault() {
+        return Boolean.TRUE.equals(refreshPublication);
+    }
+
+    public boolean refreshRelationsOrDefault() {
+        return refreshRelations == null || refreshRelations;
+    }
+
+    public int maxPublicationsOrDefault() {
+        return maxPublications == null ? 1000 : maxPublications;
+    }
+
+    public long requestDelayMsOrDefault() {
+        return requestDelayMs == null ? 500L : requestDelayMs;
+    }
 }

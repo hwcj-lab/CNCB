@@ -1,21 +1,18 @@
 package com.example.bioplatform.research.collection.common.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.PublicationMetadataProcessor;
+import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentTask;
 import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentWrite;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
-import com.example.bioplatform.research.collection.common.service.impl.CollectionHttpTransport;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
-
-import com.example.bioplatform.common.*;
-
-import com.fasterxml.jackson.databind.*;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.common.PublicationMetadataProcessor;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 
-import java.util.*;
-import java.util.function.*;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * 公共文献只用来源原有PMID查询OpenLB，空结果回退PubMed；无PMID不反查、不补写。

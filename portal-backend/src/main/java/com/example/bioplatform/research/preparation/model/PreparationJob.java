@@ -1,6 +1,9 @@
 package com.example.bioplatform.research.preparation.model;
+
 import lombok.Data;
+
 import java.time.LocalDateTime;
+
 @Data
 public class PreparationJob {
     private String scanMode;

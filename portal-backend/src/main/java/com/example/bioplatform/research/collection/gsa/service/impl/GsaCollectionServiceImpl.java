@@ -1,32 +1,33 @@
 package com.example.bioplatform.research.collection.gsa.service.impl;
 
+import com.example.bioplatform.common.BusinessException;
 import com.example.bioplatform.research.collection.common.service.impl.CollectionHttpTransport;
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
+import com.example.bioplatform.research.collection.common.service.impl.NativeResourceObservations;
 import com.example.bioplatform.research.collection.gsa.dto.GsaCollectionStartRequest;
 import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask;
 import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentWrite;
 import com.example.bioplatform.research.collection.gsa.dto.GsaPublicationSeed;
 import com.example.bioplatform.research.collection.gsa.mapper.GsaCollectionMapper;
 import com.example.bioplatform.research.collection.gsa.service.GsaCollectionService;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.collection.gsa.vo.GsaCollectionJob;
-import com.example.bioplatform.research.collection.common.service.impl.NativeResourceObservations;
-
-import com.example.bioplatform.common.*;
-import com.example.bioplatform.research.collection.gsa.mapper.GsaCollectionMapper;
-import com.fasterxml.jackson.databind.*;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import jakarta.annotation.PreDestroy;
 
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * GSA支持文章独立采集：固定上游快照→流式批量导入→逐篇HTTP补全、批量写库→增量整合。

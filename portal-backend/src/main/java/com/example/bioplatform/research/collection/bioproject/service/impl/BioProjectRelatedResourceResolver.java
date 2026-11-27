@@ -4,13 +4,15 @@ import com.example.bioplatform.research.collection.common.service.RelatedResourc
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.impl.RelatedResourceHttpClient;
 import com.example.bioplatform.research.collection.common.service.impl.ResourcePublicationParser;
-
-
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * BioProject：使用已验证GWH公开项目接口读取listPublication和listGrants。

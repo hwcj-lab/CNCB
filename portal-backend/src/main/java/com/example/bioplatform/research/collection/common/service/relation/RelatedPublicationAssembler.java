@@ -1,16 +1,16 @@
 package com.example.bioplatform.research.collection.common.service.relation;
 
-import com.example.bioplatform.research.common.PublicationMetadataProcessor;
-import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
 import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
 import com.example.bioplatform.research.common.PublicationMetadataProcessor;
-import com.fasterxml.jackson.databind.*;
-import org.springframework.stereotype.Component;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
-import java.util.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.Optional;
 
 /**
  * 固定OpenLB/PubMed结构转为固定入库行，保留逐作者署名和原始基金。

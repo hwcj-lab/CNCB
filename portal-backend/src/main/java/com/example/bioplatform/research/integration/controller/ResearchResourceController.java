@@ -1,16 +1,18 @@
 package com.example.bioplatform.research.integration.controller;
 
-import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
-import com.example.bioplatform.research.integration.service.impl.ResearchResourceService;
 import com.example.bioplatform.common.ApiResponse;
 import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
 import com.example.bioplatform.research.integration.service.impl.ResearchResourceService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 公共原库资源导入；用于已知资源API/导出文件的分批接入，不会自行请求上游。

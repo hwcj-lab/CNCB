@@ -4,12 +4,13 @@ import com.example.bioplatform.research.collection.bioproject.service.impl.BioPr
 import com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryInput;
 import com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryResult;
 import com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryStrategy;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectMetadataClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 路径二：无cncbBanks链接时读取来源已有的BioProject；保留原项目回退的结果投影。

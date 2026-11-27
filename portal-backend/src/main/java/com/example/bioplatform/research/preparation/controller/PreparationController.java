@@ -1,10 +1,10 @@
 package com.example.bioplatform.research.preparation.controller;
 
+import com.example.bioplatform.common.ApiResponse;
 import com.example.bioplatform.research.preparation.model.PreparationRequest;
 import com.example.bioplatform.research.preparation.service.PreparationService;
-import com.example.bioplatform.common.ApiResponse;
-import org.springframework.web.bind.annotation.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -48,5 +48,9 @@ public class PreparationController {
     public ApiResponse<Map<String, Object>> discard() {
         return ApiResponse.ok(service.discard());
     }
- @PostMapping("/incremental") public ApiResponse<Map<String,Object>> incremental(@RequestBody(required=false)PreparationRequest request){return ApiResponse.ok(service.incremental(request));}
+
+    @PostMapping("/incremental")
+    public ApiResponse<Map<String, Object>> incremental(@RequestBody(required = false) PreparationRequest request) {
+        return ApiResponse.ok(service.incremental(request));
+    }
 }

@@ -290,5 +290,6 @@ public interface ResearchSnapshotMapper {
      * 修改快照展示名称。
      */
     int updateSnapshotName(@Param("id") long id, @Param("name") String name);
+
     List<SourcePublicationRecord> selectGenBaseChangedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

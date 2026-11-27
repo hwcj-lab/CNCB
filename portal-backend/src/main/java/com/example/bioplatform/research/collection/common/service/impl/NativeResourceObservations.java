@@ -2,15 +2,18 @@ package com.example.bioplatform.research.collection.common.service.impl;
 
 import com.example.bioplatform.research.common.GrantPayloads;
 import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
 import com.example.bioplatform.research.integration.service.impl.ResearchResourceService;
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
-import java.util.regex.*;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 已确认的原库响应转换为资源观察；不从文章缺少PMID推断“没有文章”。

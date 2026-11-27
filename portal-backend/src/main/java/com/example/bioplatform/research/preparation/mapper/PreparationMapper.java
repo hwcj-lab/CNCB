@@ -1,9 +1,13 @@
 package com.example.bioplatform.research.preparation.mapper;
 
-import com.example.bioplatform.research.preparation.model.*;
-import org.apache.ibatis.annotations.*;
+import com.example.bioplatform.research.preparation.model.PreparationJob;
+import com.example.bioplatform.research.preparation.model.PreparationSourceCursor;
+import com.example.bioplatform.research.preparation.model.PreparedDocument;
+import com.example.bioplatform.research.preparation.model.PreparedMember;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
-import java.util.*;
+import java.util.List;
 
 @Mapper
 public interface PreparationMapper {
@@ -44,13 +48,22 @@ public interface PreparationMapper {
     long invalidMembers(@Param("table") String table);
 
     long invalidRevisionMembers(@Param("table") String table, @Param("revision") long revision);
+
     java.time.LocalDateTime databaseTime();
+
     PreparationSourceCursor sourceCursor(@Param("jobId") long jobId, @Param("source") String source);
+
     List<PreparationSourceCursor> sourceCursors(@Param("jobId") long jobId);
+
     PreparationSourceCursor successfulCursor(@Param("source") String source);
+
     int insertCursor(PreparationSourceCursor cursor);
+
     int updateCursor(PreparationSourceCursor cursor);
+
     int deleteDocumentMembers(@Param("table") String table, @Param("id") long id);
+
     int deleteDocument(@Param("id") long id);
+
     long unmappedActive(@Param("source") String source);
 }

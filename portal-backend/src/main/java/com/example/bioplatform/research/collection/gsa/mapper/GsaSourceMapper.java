@@ -1,11 +1,10 @@
 package com.example.bioplatform.research.collection.gsa.mapper;
 
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
-import java.util.*;
-
-import org.apache.ibatis.annotations.*;
-import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
+import java.util.List;
 
 /**
  * GSA来源统计与穿透读取；原始列表稳定键优先，兼容OpenLB分流的PMID键。
@@ -21,5 +20,6 @@ public interface GsaSourceMapper {
     List<SourcePublicationRecord> identifiers(@Param("pmids") List<String> pmids, @Param("dois") List<String> dois);
 
     List<SourcePublicationRecord> keys(@Param("keys") List<String> keys);
+
     List<SourcePublicationRecord> changedPage(@Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

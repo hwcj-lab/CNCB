@@ -1,13 +1,14 @@
 package com.example.bioplatform.research.collection.gsa.service.impl;
 
 import com.example.bioplatform.research.collection.gsa.dto.GsaPublicationSeed;
-
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.MessageDigest;
 import java.util.*;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * GSA支持文章行解析：保留页面全部支持文章，包括HRA/OMIX，不按CRA过滤。

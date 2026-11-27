@@ -1,13 +1,14 @@
 package com.example.bioplatform.research.collection.common.service.relation;
 
 import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectPublicationParser;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 路径一：使用PMID详情已返回的cncbBanks（或资源原有链接），按db工厂解析链接。

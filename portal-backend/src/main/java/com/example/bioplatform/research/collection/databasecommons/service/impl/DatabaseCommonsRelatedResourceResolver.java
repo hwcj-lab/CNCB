@@ -61,7 +61,8 @@ public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceRe
             var pmids = new LinkedHashSet<String>();
             var grants = json.createArrayNode();
             for (JsonNode publication : publications) {
-                if (!publication.isObject()) throw new IllegalStateException("Database Commons出版记录结构异常，dbId=" + id);
+                if (!publication.isObject())
+                    throw new IllegalStateException("Database Commons出版记录结构异常，dbId=" + id);
                 for (String field : List.of("pmid", "pubmedId")) {
                     JsonNode value = publication.get(field);
                     if (value == null || !value.isValueNode()) continue;

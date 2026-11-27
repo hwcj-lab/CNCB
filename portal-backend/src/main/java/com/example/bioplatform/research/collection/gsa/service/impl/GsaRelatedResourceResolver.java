@@ -1,17 +1,18 @@
 package com.example.bioplatform.research.collection.gsa.service.impl;
 
+import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.impl.RelatedResourceHttpClient;
 import com.example.bioplatform.research.collection.common.service.impl.ResourcePublicationParser;
-
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * GSA：使用资源搜索页读取本资源明确关联的BioProject，再读取项目文献与基金。

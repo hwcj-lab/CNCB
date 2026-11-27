@@ -2,9 +2,8 @@ package com.example.bioplatform.research.collection.bioproject.service.impl;
 
 import com.example.bioplatform.research.collection.bioproject.dto.BioProjectPublicationSeed;
 import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
-import com.fasterxml.jackson.databind.*;
-
-import java.util.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 原始项目机构保留在原始论文载荷内；只从论文元数据提取作者署名。

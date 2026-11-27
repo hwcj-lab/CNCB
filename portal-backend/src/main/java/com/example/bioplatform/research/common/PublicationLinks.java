@@ -1,9 +1,11 @@
 package com.example.bioplatform.research.common;
 
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.*;
-import java.util.regex.*;
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 论文外链优先PMID/DOI，无标识时定位本篇记录明确关联的GSA或BioProject资源。

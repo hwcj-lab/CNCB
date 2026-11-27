@@ -1,8 +1,12 @@
 package com.example.bioplatform.research.collection.common.service.impl;
 
 
-import java.util.*;
-import java.util.regex.*;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 从官方详情正文的明确文献链接提取PMID，不把资源编号、年份或基金编号当PMID。

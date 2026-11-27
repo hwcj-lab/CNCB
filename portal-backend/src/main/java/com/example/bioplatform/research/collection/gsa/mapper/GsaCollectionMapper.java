@@ -4,9 +4,12 @@ import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask;
 import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentWrite;
 import com.example.bioplatform.research.collection.gsa.dto.GsaPublicationSeed;
 import com.example.bioplatform.research.collection.gsa.vo.GsaCollectionJob;
-import org.apache.ibatis.annotations.*;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
+import org.apache.ibatis.annotations.Param;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
 /**
  * GSA专用持久化SQL：任务断点、列表UPSERT、补全批量写入及来源适配读取。

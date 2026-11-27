@@ -1,9 +1,8 @@
 package com.example.bioplatform.research.collection.openlb.service.impl;
 
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
 import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
-
+import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,59 +1,28 @@
 package com.example.bioplatform.research.collection.common.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.PublicationLinks;
-import com.example.bioplatform.research.collection.common.dto.PendingRelationBatchRequest;
-import com.example.bioplatform.research.collection.common.dto.PendingRelationRoot;
-import com.example.bioplatform.research.collection.common.dto.PublicationRelationCollectionRequest;
-import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
-import com.example.bioplatform.research.collection.common.dto.RelationQueueNode;
-import com.example.bioplatform.research.collection.common.dto.RelationSourceRecord;
-import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
+import com.example.bioplatform.common.BusinessException;
+import com.example.bioplatform.research.collection.common.dto.*;
 import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
-import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
 import com.example.bioplatform.research.collection.common.service.PublicationRelationCollectionService;
-import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
-import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus;
 import com.example.bioplatform.research.collection.common.vo.RelatedPublicationPage;
-import com.example.bioplatform.research.collection.common.vo.RelatedPublicationView;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.integration.service.impl.ResearchPublicationSourceRegistry;
-import com.example.bioplatform.research.collection.openlb.service.relation.OpenLbPublicationDetailsClient;
-import com.example.bioplatform.research.collection.common.service.relation.RelatedPublicationAssembler;
-import com.example.bioplatform.research.collection.common.service.relation.RelatedPublicationStore;
-import com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryFactory;
-import com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryInput;
-import com.example.bioplatform.research.collection.common.service.relation.RelationIdentifierFactory;
-
-import com.example.bioplatform.common.BusinessException;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 单文献刷新及递归关联发现实现。

@@ -1,8 +1,7 @@
 package com.example.bioplatform.research.collection.openlb.mapper;
 
-import com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow;
 import com.example.bioplatform.research.collection.common.vo.TaskStatusCount;
-
+import com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 

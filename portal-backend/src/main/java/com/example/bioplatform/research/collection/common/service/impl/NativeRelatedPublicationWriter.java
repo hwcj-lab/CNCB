@@ -1,24 +1,24 @@
 package com.example.bioplatform.research.collection.common.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
 import com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentWrite;
-import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentWrite;
-import com.example.bioplatform.research.collection.gsa.dto.GsaPublicationSeed;
-import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentTask;
 import com.example.bioplatform.research.collection.bioproject.mapper.BioProjectCollectionMapper;
-import com.example.bioplatform.research.collection.gsa.mapper.GsaCollectionMapper;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectPublicationParser;
 import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
-import com.example.bioplatform.research.collection.common.service.impl.CollectionHttpTransport;
-import com.fasterxml.jackson.databind.*;
+import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentTask;
+import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentWrite;
+import com.example.bioplatform.research.collection.gsa.dto.GsaPublicationSeed;
+import com.example.bioplatform.research.collection.gsa.mapper.GsaCollectionMapper;
+import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.util.*;
-import java.util.function.*;
+import java.util.List;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * 无PMID项目论文沿用来源表稳定键写入；不创建额外论文表、不误标为主文献。

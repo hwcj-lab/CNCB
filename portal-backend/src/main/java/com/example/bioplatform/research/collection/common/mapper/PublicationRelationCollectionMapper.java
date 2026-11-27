@@ -6,7 +6,6 @@ import com.example.bioplatform.research.collection.common.dto.RelationQueueNode;
 import com.example.bioplatform.research.collection.common.dto.RelationSourceRecord;
 import com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus;
 import com.example.bioplatform.research.collection.common.vo.RelatedPublicationView;
-
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -178,9 +177,14 @@ public interface PublicationRelationCollectionMapper {
                                                  @Param("identifier") String identifier,
                                                  @Param("offset") int offset, @Param("size") int size);
 
-    /** Record a discovered leaf for visited/counting without scheduling another lookup. */
+    /**
+     * Record a discovered leaf for visited/counting without scheduling another lookup.
+     */
     int insertTerminalQueue(@Param("jobId") long jobId, @Param("identifierType") String identifierType,
                             @Param("identifier") String identifier, @Param("depth") int depth);
-    /** Old recursive queues are compatible with the new one-level policy on resume. */
+
+    /**
+     * Old recursive queues are compatible with the new one-level policy on resume.
+     */
     int finishDescendantQueue(@Param("jobId") long jobId);
 }

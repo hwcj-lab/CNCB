@@ -1,12 +1,14 @@
 package com.example.bioplatform.research.collection.bioproject.service.impl;
 
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.node.*;
-
-import java.util.*;
-import java.util.regex.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 已验证公开JSON接口优先；缺少PMID时读项目出版信息表补充，绝不遍历其他资源的任意链接。

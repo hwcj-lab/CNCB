@@ -1,21 +1,18 @@
 package com.example.bioplatform.research.collection.genbase.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
+import com.example.bioplatform.common.BusinessException;
 import com.example.bioplatform.research.collection.genbase.dto.GenBaseCollectionStartRequest;
 import com.example.bioplatform.research.collection.genbase.dto.GenBaseOpenLbWriteRow;
 import com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask;
 import com.example.bioplatform.research.collection.genbase.dto.GenBasePublicationWriteRow;
 import com.example.bioplatform.research.collection.genbase.mapper.GenBaseCollectionMapper;
 import com.example.bioplatform.research.collection.genbase.service.GenBaseCollectionService;
-import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.example.bioplatform.research.collection.genbase.vo.GenBaseCollectionStatus;
 import com.example.bioplatform.research.collection.genbase.vo.GenBaseJobState;
-
-import com.example.bioplatform.common.BusinessException;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.integration.service.ResearchPublicationIntegrationService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,10 +32,10 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;

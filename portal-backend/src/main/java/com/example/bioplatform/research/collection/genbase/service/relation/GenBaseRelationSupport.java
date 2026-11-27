@@ -1,17 +1,17 @@
 package com.example.bioplatform.research.collection.genbase.service.relation;
 
+import com.example.bioplatform.common.BusinessException;
 import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
 import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
 import com.example.bioplatform.research.collection.common.service.relation.RelatedPublicationWriter;
 import com.example.bioplatform.research.collection.common.service.relation.RelationIdentifierResolver;
-import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
-import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
-import com.example.bioplatform.common.BusinessException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 
-import java.util.*;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * GenBase自己的唯一值和表结构写入放在一起；公共队列不识别paper_id字段。

@@ -2,11 +2,12 @@ package com.example.bioplatform.research.integration.mapper;
 
 import com.example.bioplatform.research.collection.common.dto.PendingRelationRoot;
 import com.example.bioplatform.research.collection.common.dto.RelationSourceRecord;
-import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import org.apache.ibatis.annotations.*;
+import com.example.bioplatform.research.integration.dto.ResearchResourceInput;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
-import java.util.*;
+import java.util.List;
 
 /**
  * 只保存无原生文献的资源；有文献时停用既有资源行，保留旧快照引用。
@@ -32,5 +33,6 @@ public interface ResearchResourceMapper {
     int relationStatus(@Param("code") String code, @Param("id") String id, @Param("status") String status, @Param("error") String error);
 
     int grants(@Param("code") String code, @Param("id") String id, @Param("grants") String grants);
+
     List<SourcePublicationRecord> changedPage(@Param("code") String code, @Param("related") boolean related, @Param("time") java.time.LocalDateTime time, @Param("after") long after, @Param("until") java.time.LocalDateTime until, @Param("size") int size);
 }

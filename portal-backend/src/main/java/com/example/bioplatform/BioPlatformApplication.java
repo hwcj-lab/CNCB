@@ -1,8 +1,8 @@
 package com.example.bioplatform;
 
+import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.mybatis.spring.annotation.MapperScan;
 
 @SpringBootApplication
 @MapperScan(basePackages = {"com.example.bioplatform.catalog.mapper", "com.example.bioplatform.research"}, annotationClass = org.apache.ibatis.annotations.Mapper.class)

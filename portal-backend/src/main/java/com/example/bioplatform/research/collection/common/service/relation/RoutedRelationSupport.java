@@ -1,15 +1,14 @@
 package com.example.bioplatform.research.collection.common.service.relation;
 
-import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
-import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
-import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
-import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
 import com.example.bioplatform.common.BusinessException;
+import com.example.bioplatform.research.collection.common.dto.RelatedPublicationWriteRow;
+import com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 同结构来源的默认PMID写入和唯一值规则；专用适配器优先于此兜底。

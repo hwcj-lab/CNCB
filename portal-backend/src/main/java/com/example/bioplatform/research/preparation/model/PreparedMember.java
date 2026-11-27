@@ -1,5 +1,7 @@
 package com.example.bioplatform.research.preparation.model;
+
 import lombok.Data;
+
 @Data
 public class PreparedMember {
     private Long documentId;

@@ -2,11 +2,13 @@ package com.example.bioplatform.research.collection.common.service.relation;
 
 import org.springframework.stereotype.Component;
 
-import java.net.*;
-import java.net.http.*;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.io.IOException;
 
 /**
  * 关联路径共享HTTP读取器；保留原超时、重定向与状态码行为，不触发采集任务。

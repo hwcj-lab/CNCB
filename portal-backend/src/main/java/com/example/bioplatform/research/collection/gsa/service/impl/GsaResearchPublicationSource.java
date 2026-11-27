@@ -1,16 +1,13 @@
 package com.example.bioplatform.research.collection.gsa.service.impl;
 
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import com.example.bioplatform.research.collection.gsa.mapper.GsaSourceMapper;
-import com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper;
-import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.collection.gsa.mapper.GsaSourceMapper;
-import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * GSA专用统计适配器：同时支持列表无PMID文献及OpenLB分流记录。
@@ -66,9 +63,14 @@ public class GsaResearchPublicationSource implements ResearchPublicationSource {
         return result;
     }
 
-    @Override public boolean supportsIncremental() { return true; }
-    @Override public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
-            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
-        return mapper.changedPage(related,time,after,until,size);
+    @Override
+    public boolean supportsIncremental() {
+        return true;
+    }
+
+    @Override
+    public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+                                                                java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+        return mapper.changedPage(related, time, after, until, size);
     }
 }

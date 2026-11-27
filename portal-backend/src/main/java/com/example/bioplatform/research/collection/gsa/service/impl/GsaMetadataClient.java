@@ -1,16 +1,17 @@
 package com.example.bioplatform.research.collection.gsa.service.impl;
 
+import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.impl.CollectionHttpTransport;
+import com.example.bioplatform.research.collection.common.service.impl.PublicationMetadataEnricher;
 import com.example.bioplatform.research.collection.gsa.dto.GsaCollectionStartRequest;
 import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask;
 import com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentWrite;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
-import com.example.bioplatform.research.collection.common.service.impl.PublicationMetadataEnricher;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Component;
 import org.springframework.beans.BeanUtils;
+import org.springframework.stereotype.Component;
 
-import java.util.function.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * GSA采集专用调用门面，实际论文元数据补全由公共组件完成。

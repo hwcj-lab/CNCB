@@ -53,11 +53,15 @@ public interface ResearchPublicationSource {
      */
     List<SourcePublicationRecord> loadRecordsBySourceKeys(List<String> sourceKeys);
 
-    /** Optional ordered change stream; the existing collection/full-scan contract remains unchanged. */
-    default boolean supportsIncremental() { return false; }
+    /**
+     * Optional ordered change stream; the existing collection/full-scan contract remains unchanged.
+     */
+    default boolean supportsIncremental() {
+        return false;
+    }
 
     default List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
-            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+                                                                 java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
         throw new UnsupportedOperationException("Source does not provide update_time/id pagination: " + sourceCode());
     }
 }

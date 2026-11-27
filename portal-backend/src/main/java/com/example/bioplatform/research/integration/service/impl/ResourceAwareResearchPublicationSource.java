@@ -1,11 +1,8 @@
 package com.example.bioplatform.research.integration.service.impl;
 
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
-import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
-import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.collection.common.service.ResearchPublicationSource;
 import com.example.bioplatform.research.integration.mapper.ResearchResourceMapper;
-import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
 
 import java.util.*;
 
@@ -74,26 +71,30 @@ final class ResourceAwareResearchPublicationSource implements ResearchPublicatio
         return result;
     }
 
-    @Override public boolean supportsIncremental() { return papers.supportsIncremental(); }
+    @Override
+    public boolean supportsIncremental() {
+        return papers.supportsIncremental();
+    }
 
-    @Override public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
-            java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
+    @Override
+    public List<SourcePublicationRecord> loadChangedRecordsPage(boolean related,
+                                                                java.time.LocalDateTime time, long after, java.time.LocalDateTime until, int size) {
         List<SourcePublicationRecord> result = new ArrayList<>();
-        for (var original : papers.loadChangedRecordsPage(related,time,after/2,until,size)) {
+        for (var original : papers.loadChangedRecordsPage(related, time, after / 2, until, size)) {
             var row = new SourcePublicationRecord();
-            org.springframework.beans.BeanUtils.copyProperties(original,row);
-            row.setSourceRowId(Math.multiplyExact(row.getSourceRowId(),2));
+            org.springframework.beans.BeanUtils.copyProperties(original, row);
+            row.setSourceRowId(Math.multiplyExact(row.getSourceRowId(), 2));
             result.add(row);
         }
-        long resourceAfter = after % 2 == 0 ? Math.max(0,after/2-1) : after/2;
-        for (var original : resources.changedPage(sourceCode(),related,time,resourceAfter,until,size)) {
+        long resourceAfter = after % 2 == 0 ? Math.max(0, after / 2 - 1) : after / 2;
+        for (var original : resources.changedPage(sourceCode(), related, time, resourceAfter, until, size)) {
             var row = new SourcePublicationRecord();
-            org.springframework.beans.BeanUtils.copyProperties(original,row);
-            row.setSourceRowId(Math.addExact(Math.multiplyExact(row.getSourceRowId(),2),1));
+            org.springframework.beans.BeanUtils.copyProperties(original, row);
+            row.setSourceRowId(Math.addExact(Math.multiplyExact(row.getSourceRowId(), 2), 1));
             result.add(row);
         }
         return result.stream().filter(row -> row.getSourceUpdatedTime().isAfter(time)
-                || row.getSourceUpdatedTime().equals(time) && row.getSourceRowId()>after)
+                        || row.getSourceUpdatedTime().equals(time) && row.getSourceRowId() > after)
                 .sorted(Comparator.comparing(SourcePublicationRecord::getSourceUpdatedTime)
                         .thenComparing(SourcePublicationRecord::getSourceRowId)).limit(size).toList();
     }

@@ -1,19 +1,18 @@
 package com.example.bioplatform.research.collection.common.controller;
 
+import com.example.bioplatform.common.ApiResponse;
 import com.example.bioplatform.research.collection.common.dto.PendingRelationBatchRequest;
 import com.example.bioplatform.research.collection.common.dto.PublicationRelationCollectionRequest;
 import com.example.bioplatform.research.collection.common.service.PublicationRelationCollectionService;
 import com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus;
 import com.example.bioplatform.research.collection.common.vo.RelatedPublicationPage;
-
-import com.example.bioplatform.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 人工控制的单文献刷新和单层关联采集接口；不会自动运行全量任务。

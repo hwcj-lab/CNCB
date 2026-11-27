@@ -1,25 +1,24 @@
 package com.example.bioplatform.research.collection.genbase.service.impl;
 
-import com.example.bioplatform.research.common.GrantPayloads;
-import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
-import com.example.bioplatform.research.collection.genbase.dto.GenBaseOpenLbWriteRow;
-import com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask;
+import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectDocumentParser;
 import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentTask;
 import com.example.bioplatform.research.collection.common.dto.PublicationEnrichmentWrite;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectDocumentParser;
 import com.example.bioplatform.research.collection.common.service.impl.CollectionHttpTransport;
-import com.example.bioplatform.research.collection.gsa.service.impl.GsaPublicationParser;
 import com.example.bioplatform.research.collection.common.service.impl.PublicationMetadataEnricher;
-
-import com.example.bioplatform.common.*;
-
-import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.node.*;
-import org.springframework.stereotype.Component;
+import com.example.bioplatform.research.collection.genbase.dto.GenBaseOpenLbWriteRow;
+import com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask;
+import com.example.bioplatform.research.common.GrantPayloads;
+import com.example.bioplatform.research.common.ResearchPublicationJsonMerger;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.BeanUtils;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.function.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 /**
  * GenBase元数据读取：已有PMID详情、项目内精确匹配；缺失PMID不推断、不补写；不把提交单位作为作者署名。

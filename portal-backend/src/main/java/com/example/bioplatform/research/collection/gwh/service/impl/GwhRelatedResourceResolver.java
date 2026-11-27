@@ -1,18 +1,20 @@
 package com.example.bioplatform.research.collection.gwh.service.impl;
 
+import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceData;
 import com.example.bioplatform.research.collection.common.service.RelatedResourceResolver;
-import com.example.bioplatform.research.collection.bioproject.service.impl.BioProjectRelatedResourceResolver;
 import com.example.bioplatform.research.collection.common.service.impl.RelatedResourceHttpClient;
 import com.example.bioplatform.research.collection.common.service.impl.ResourcePublicationParser;
-
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
-import java.util.regex.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * GWH数字Assembly详情页：正文论文链接与项目链接均来自该组装记录，不采集页脚引用。

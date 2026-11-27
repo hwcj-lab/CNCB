@@ -49,7 +49,9 @@ public final class FundAgencyParser {
         return value.trim().replaceAll("\\s+", " ");
     }
 
-    /** Local dictionary lookup candidates; no upstream requests. Malformed JSON is rejected by preparation. */
+    /**
+     * Local dictionary lookup candidates; no upstream requests. Malformed JSON is rejected by preparation.
+     */
     public static java.util.Set<String> missingAgencyGrantIds(String payload, com.fasterxml.jackson.databind.ObjectMapper json) {
         var result = new java.util.LinkedHashSet<String>();
         if (payload == null || payload.isBlank()) return result;
@@ -57,7 +59,8 @@ public final class FundAgencyParser {
             var grants = json.readTree(payload);
             if (grants != null && grants.isArray()) for (var grant : grants)
                 if (agency(grant).isEmpty() && !identifier(grant).isEmpty()) result.add(identifier(grant));
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
         return result;
     }
 

@@ -1,23 +1,35 @@
 package com.example.bioplatform.research.preparation.service;
-import com.example.bioplatform.research.preparation.mapper.PreparationMapper;
-import com.example.bioplatform.research.preparation.model.*;
+
+import com.example.bioplatform.common.BusinessException;
 import com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord;
 import com.example.bioplatform.research.collection.common.service.SourceMembership;
 import com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper;
+import com.example.bioplatform.research.common.FundAgencyParser;
+import com.example.bioplatform.research.common.PublicationLinks;
+import com.example.bioplatform.research.common.PublicationValues;
 import com.example.bioplatform.research.integration.service.impl.ResearchPublicationSourceRegistry;
+import com.example.bioplatform.research.preparation.mapper.PreparationMapper;
+import com.example.bioplatform.research.preparation.model.PreparationJob;
+import com.example.bioplatform.research.preparation.model.PreparationRequest;
+import com.example.bioplatform.research.preparation.model.PreparationSourceCursor;
+import com.example.bioplatform.research.preparation.model.PreparedDocument;
 import com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper;
-import com.example.bioplatform.research.common.*;
-import com.example.bioplatform.common.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
-import jakarta.annotation.PreDestroy;
-import java.util.*;
+
 import java.time.LocalDateTime;
-import java.util.concurrent.*;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-/** Local preparation is explicitly scheduled, independent of collectors and snapshot generation. */
+
+/**
+ * Local preparation is explicitly scheduled, independent of collectors and snapshot generation.
+ */
 @Service
 public class PreparationService {
     private final PreparationMapper mapper;
@@ -28,34 +40,36 @@ public class PreparationService {
     private final SourceMembership membership;
     private final ObjectMapper json;
     private final TransactionTemplate tx;
-    private final ExecutorService executor=Executors.newSingleThreadExecutor(r-> {
-        var t=new Thread(r,"research-preparation");
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+        var t = new Thread(r, "research-preparation");
         t.setDaemon(true);
         return t;
     });
-    private final AtomicBoolean running=new AtomicBoolean(),stop=new AtomicBoolean();
-    public PreparationService(PreparationMapper mapper,ResearchPublicationSourceRegistry registry,ResearchSnapshotMapper dictionaries,OpenLbRoutingMapper routing,PreparedMetadataParser parser,SourceMembership membership,ObjectMapper json,TransactionTemplate tx) {
-        this.mapper=mapper;
-        this.registry=registry;
-        this.dictionaries=dictionaries;
-        this.routing=routing;
-        this.parser=parser;
-        this.membership=membership;
-        this.json=json;
-        this.tx=tx;
+    private final AtomicBoolean running = new AtomicBoolean(), stop = new AtomicBoolean();
+
+    public PreparationService(PreparationMapper mapper, ResearchPublicationSourceRegistry registry, ResearchSnapshotMapper dictionaries, OpenLbRoutingMapper routing, PreparedMetadataParser parser, SourceMembership membership, ObjectMapper json, TransactionTemplate tx) {
+        this.mapper = mapper;
+        this.registry = registry;
+        this.dictionaries = dictionaries;
+        this.routing = routing;
+        this.parser = parser;
+        this.membership = membership;
+        this.json = json;
+        this.tx = tx;
     }
+
     @org.springframework.beans.factory.annotation.Value("${app.research-preparation.overlap-seconds:5}")
     private long overlapSeconds = 5;
 
-    public synchronized Map<String,Object> start(PreparationRequest request, boolean rebuild) {
+    public synchronized Map<String, Object> start(PreparationRequest request, boolean rebuild) {
         return begin(request, rebuild ? "REBUILD" : "FULL");
     }
 
-    public synchronized Map<String,Object> incremental(PreparationRequest request) {
+    public synchronized Map<String, Object> incremental(PreparationRequest request) {
         return begin(request, "INCREMENTAL");
     }
 
-    private Map<String,Object> begin(PreparationRequest request, String mode) {
+    private Map<String, Object> begin(PreparationRequest request, String mode) {
         if (running.get()) throw conflict("整理正在运行");
         PreparationJob old = mapper.latestJob();
         if (old != null && "RUNNING".equals(old.getStatus()))
@@ -106,7 +120,7 @@ public class PreparationService {
     }
 
     private void initializeCursors(PreparationJob job,
-            List<com.example.bioplatform.research.collection.common.service.ResearchPublicationSource> sources) {
+                                   List<com.example.bioplatform.research.collection.common.service.ResearchPublicationSource> sources) {
         var codes = decode(job.getSourceCodesJson());
         LocalDateTime now = mapper.databaseTime();
         // Exclude the currently changing second. A small replay window also protects same-second/commit boundaries.
@@ -132,26 +146,30 @@ public class PreparationService {
         }
     }
 
-    public synchronized Map<String,Object> stop() {
+    public synchronized Map<String, Object> stop() {
         stop.set(true);
         return status();
     }
-    public synchronized Map<String,Object> recover() {
-        if(running.get())throw conflict("当前进程仍在运行，不能恢复");
-        var job=mapper.latestJob();
-        if(job!=null&&"RUNNING".equals(job.getStatus())) {
+
+    public synchronized Map<String, Object> recover() {
+        if (running.get()) throw conflict("当前进程仍在运行，不能恢复");
+        var job = mapper.latestJob();
+        if (job != null && "RUNNING".equals(job.getStatus())) {
             job.setStatus("STOPPED");
             job.setErrorMessage("进程中断；将从已提交游标继续");
             mapper.updateJob(job);
         }
         return status();
     }
-    public synchronized Map<String,Object> discard() {
-        if(running.get())throw conflict("先停止当前任务");
-        var job=mapper.latestJob();
-        if(job==null||!Set.of("FAILED","STOPPED").contains(job.getStatus()))throw conflict("只能丢弃已停止或失败的未发布整理版本");
-        tx.executeWithoutResult(s-> {
-            for(String type:PreparedMetadataParser.TYPES)mapper.deleteRevisionMembers(PreparedMetadataParser.table(type),job.getId());
+
+    public synchronized Map<String, Object> discard() {
+        if (running.get()) throw conflict("先停止当前任务");
+        var job = mapper.latestJob();
+        if (job == null || !Set.of("FAILED", "STOPPED").contains(job.getStatus()))
+            throw conflict("只能丢弃已停止或失败的未发布整理版本");
+        tx.executeWithoutResult(s -> {
+            for (String type : PreparedMetadataParser.TYPES)
+                mapper.deleteRevisionMembers(PreparedMetadataParser.table(type), job.getId());
             mapper.deleteRevisionDocuments(job.getId());
             mapper.reopenRevision(job.getId());
             mapper.deleteIdentities(job.getId());
@@ -161,37 +179,45 @@ public class PreparationService {
         });
         return status();
     }
-    public Map<String,Object> status() {
-        Map<String,Object> result=new LinkedHashMap<>();
-        var job=mapper.latestJob();
-        Long revision=mapper.readyRevision();
-        Set<String> covered=new HashSet<>();
-        for(String payload:mapper.coveredSources())covered.addAll(decode(payload));
-        var missing=registry.options().stream().map(o->o.code()).filter(c->!covered.contains(c)).toList();
-        boolean pending=job!=null&&Set.of("RUNNING","FAILED","STOPPED").contains(job.getStatus());
-        result.put("running",running.get()||job!=null&&"RUNNING".equals(job.getStatus()));
-        result.put("stopRequested",stop.get());
-        result.put("job",job);
+
+    public Map<String, Object> status() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        var job = mapper.latestJob();
+        Long revision = mapper.readyRevision();
+        Set<String> covered = new HashSet<>();
+        for (String payload : mapper.coveredSources()) covered.addAll(decode(payload));
+        var missing = registry.options().stream().map(o -> o.code()).filter(c -> !covered.contains(c)).toList();
+        boolean pending = job != null && Set.of("RUNNING", "FAILED", "STOPPED").contains(job.getStatus());
+        result.put("running", running.get() || job != null && "RUNNING".equals(job.getStatus()));
+        result.put("stopRequested", stop.get());
+        result.put("job", job);
         result.put("sourceCursors", job == null ? List.of() : mapper.sourceCursors(job.getId()));
-        result.put("overlapSeconds", Math.max(0,overlapSeconds));
-        result.put("readyRevision",revision);
-        result.put("missingSources",missing);
-        result.put("canBuild",revision!=null&&!pending&&missing.isEmpty());
-        result.put("sources",registry.options());
+        result.put("overlapSeconds", Math.max(0, overlapSeconds));
+        result.put("readyRevision", revision);
+        result.put("missingSources", missing);
+        result.put("canBuild", revision != null && !pending && missing.isEmpty());
+        result.put("sources", registry.options());
         return result;
     }
+
     public long requireReady() {
-        var state=status();
-        if(!Boolean.TRUE.equals(state.get("canBuild")))throw conflict("请先完成全部已接入来源的整理，失败或停止任务必须续传/丢弃后才能生成新快照");
-        return ((Number)state.get("readyRevision")).longValue();
+        var state = status();
+        if (!Boolean.TRUE.equals(state.get("canBuild")))
+            throw conflict("请先完成全部已接入来源的整理，失败或停止任务必须续传/丢弃后才能生成新快照");
+        return ((Number) state.get("readyRevision")).longValue();
     }
+
     private void run(PreparationJob job) {
         try {
-            Map<String,String> routes = new HashMap<>();
-            for (var route : routing.routes()) routes.put(route.get("bank_db").toString().toLowerCase(Locale.ROOT), route.get("source_code").toString());
+            Map<String, String> routes = new HashMap<>();
+            for (var route : routing.routes())
+                routes.put(route.get("bank_db").toString().toLowerCase(Locale.ROOT), route.get("source_code").toString());
             List<String> codes = decode(job.getSourceCodesJson());
             while (job.getSourceIndex() < codes.size()) {
-                if (stop.get()) { finish(job,"STOPPED",null); return; }
+                if (stop.get()) {
+                    finish(job, "STOPPED", null);
+                    return;
+                }
                 String code = codes.get(job.getSourceIndex());
                 var source = registry.all(true).stream().filter(candidate -> code.equals(candidate.sourceCode())).findFirst()
                         .orElseThrow(() -> new IllegalStateException("来源已停用，请discard后重新整理: " + code));
@@ -203,10 +229,10 @@ public class PreparationService {
                 if (rows.isEmpty()) {
                     tx.executeWithoutResult(state -> {
                         // Delta scans never expire unseen records: most source documents were deliberately not read.
-                        if (!delta) mapper.expireMissing(code,job.getId());
+                        if (!delta) mapper.expireMissing(code, job.getId());
                         cursor.setStatus("COMPLETE");
                         mapper.updateCursor(cursor);
-                        job.setSourceIndex(job.getSourceIndex()+1);
+                        job.setSourceIndex(job.getSourceIndex() + 1);
                         job.setAfterId(0L);
                         job.setAfterUpdateTime(null);
                         mapper.updateJob(job);
@@ -214,24 +240,25 @@ public class PreparationService {
                     continue;
                 }
                 validateCursor(cursor, rows);
-                Map<String,String> dictionary = loadDictionary(rows);
+                Map<String, String> dictionary = loadDictionary(rows);
                 tx.executeWithoutResult(state -> processBatch(job, code, rows, dictionary, routes, cursor));
             }
             tx.executeWithoutResult(state -> {
-                if (Boolean.TRUE.equals(job.getAllSources())) mapper.expireDisabled(codes,job.getId());
+                if (Boolean.TRUE.equals(job.getAllSources())) mapper.expireDisabled(codes, job.getId());
                 for (String type : PreparedMetadataParser.TYPES) {
                     long invalid = "INCREMENTAL".equals(job.getScanMode())
-                            ? mapper.invalidRevisionMembers(PreparedMetadataParser.table(type),job.getId())
+                            ? mapper.invalidRevisionMembers(PreparedMetadataParser.table(type), job.getId())
                             : mapper.invalidMembers(PreparedMetadataParser.table(type));
                     if (invalid > 0) throw new IllegalStateException("整理成员完整性校验失败: " + type);
                 }
                 mapper.deleteIdentities(job.getId());
                 mapper.prepareIdentities(job.getId());
-                finish(job,stop.get()?"STOPPED":"SUCCESS",null);
+                finish(job, stop.get() ? "STOPPED" : "SUCCESS", null);
             });
         } catch (Exception ex) {
             var persisted = mapper.latestJob();
-            if (persisted != null && Objects.equals(persisted.getId(),job.getId())) finish(persisted,"FAILED",truncate(ex.getMessage(),1900));
+            if (persisted != null && Objects.equals(persisted.getId(), job.getId()))
+                finish(persisted, "FAILED", truncate(ex.getMessage(), 1900));
         } finally {
             running.set(false);
             stop.set(false);
@@ -248,7 +275,8 @@ public class PreparationService {
             if (delta) {
                 var updated = row.getSourceUpdatedTime();
                 if (updated == null || !updated.isBefore(cursor.getUntilTime()) || updated.isBefore(time)
-                        || updated.equals(time) && id <= after) throw new IllegalStateException("来源更新时间/ID游标未严格递增: " + cursor.getSourceCode());
+                        || updated.equals(time) && id <= after)
+                    throw new IllegalStateException("来源更新时间/ID游标未严格递增: " + cursor.getSourceCode());
                 time = updated;
             } else if (id <= after) throw new IllegalStateException("来源ID游标未严格递增: " + cursor.getSourceCode());
             after = id;
@@ -256,13 +284,13 @@ public class PreparationService {
     }
 
     private void processBatch(PreparationJob job, String code, List<SourcePublicationRecord> rows,
-            Map<String,String> dictionary, Map<String,String> routes, PreparationSourceCursor cursor) {
+                              Map<String, String> dictionary, Map<String, String> routes, PreparationSourceCursor cursor) {
         var hashes = rows.stream().map(row -> PublicationValues.sha(sourceKey(row))).toList();
-        Map<String,PreparedDocument> byHash = new HashMap<>();
-        Map<Long,PreparedDocument> byRow = new HashMap<>();
+        Map<String, PreparedDocument> byHash = new HashMap<>();
+        Map<Long, PreparedDocument> byRow = new HashMap<>();
         for (var prior : mapper.activeDocuments(code, hashes, rows.stream().map(SourcePublicationRecord::getSourceRowId).toList())) {
-            byHash.put(prior.getSourceHash(),prior);
-            if (prior.getSourceRowId()!=null) byRow.put(prior.getSourceRowId(),prior);
+            byHash.put(prior.getSourceHash(), prior);
+            if (prior.getSourceRowId() != null) byRow.put(prior.getSourceRowId(), prior);
         }
         for (var row : rows) {
             String hash = PublicationValues.sha(sourceKey(row));
@@ -270,142 +298,156 @@ public class PreparationService {
             if (previous == null) previous = byRow.get(row.getSourceRowId());
             if (Boolean.FALSE.equals(row.getRecordActive())) {
                 if (previous != null) {
-                    retire(previous,job.getId());
+                    retire(previous, job.getId());
                     byHash.remove(previous.getSourceHash());
                     byRow.remove(row.getSourceRowId());
-                    job.setRowsChanged(job.getRowsChanged()+1);
+                    job.setRowsChanged(job.getRowsChanged() + 1);
                 }
                 continue;
             }
-            var parsed = parser.parse(row,dictionary);
-            var document = document(code,row,job.getId(),routes);
+            var parsed = parser.parse(row, dictionary);
+            var document = document(code, row, job.getId(), routes);
             document.setSourceRowId(row.getSourceRowId());
             document.setValidFrom(null);
             document.setSeenRun(null);
-            document.setContentHash(PublicationValues.sha(encode(document)+parsed.contentHash()));
+            document.setContentHash(PublicationValues.sha(encode(document) + parsed.contentHash()));
             document.setValidFrom(job.getId());
             document.setSeenRun(job.getId());
             if (previous != null && !Boolean.TRUE.equals(job.getRebuild()) && document.getContentHash().equals(previous.getContentHash())) {
-                mapper.touch(previous.getId(),job.getId(),row.getSourceRowId());
+                mapper.touch(previous.getId(), job.getId(), row.getSourceRowId());
                 previous.setSourceRowId(row.getSourceRowId());
-                byRow.put(row.getSourceRowId(),previous);
+                byRow.put(row.getSourceRowId(), previous);
                 continue;
             }
             if (previous != null) {
-                retire(previous,job.getId());
+                retire(previous, job.getId());
                 byHash.remove(previous.getSourceHash());
             }
             mapper.insertDocument(document);
-            byHash.put(document.getSourceHash(),document);
-            byRow.put(row.getSourceRowId(),document);
+            byHash.put(document.getSourceHash(), document);
+            byRow.put(row.getSourceRowId(), document);
             for (String type : PreparedMetadataParser.TYPES) {
                 var members = parsed.members().get(type);
                 for (var member : members) {
-                    member.setDocumentId(document.getId()); member.setSourceCode(code);
-                    member.setDocumentKey(document.getDocumentKey()); member.setPmid(document.getPmid());
-                    member.setDoi(document.getDoi()); member.setSourceUrl(document.getSourceUrl());
+                    member.setDocumentId(document.getId());
+                    member.setSourceCode(code);
+                    member.setDocumentKey(document.getDocumentKey());
+                    member.setPmid(document.getPmid());
+                    member.setDoi(document.getDoi());
+                    member.setSourceUrl(document.getSourceUrl());
                 }
-                for (int offset=0;offset<members.size();offset+=50)
-                    mapper.insertMembers(PreparedMetadataParser.table(type),members.subList(offset,Math.min(offset+50,members.size())));
+                for (int offset = 0; offset < members.size(); offset += 50)
+                    mapper.insertMembers(PreparedMetadataParser.table(type), members.subList(offset, Math.min(offset + 50, members.size())));
             }
-            job.setRowsChanged(job.getRowsChanged()+1);
+            job.setRowsChanged(job.getRowsChanged() + 1);
         }
-        var last = rows.get(rows.size()-1);
+        var last = rows.get(rows.size() - 1);
         cursor.setAfterId(last.getSourceRowId());
         if ("INCREMENTAL".equals(cursor.getScanMode())) cursor.setAfterUpdateTime(last.getSourceUpdatedTime());
         cursor.setStatus("RUNNING");
         mapper.updateCursor(cursor);
-        job.setRowsScanned(job.getRowsScanned()+rows.size());
+        job.setRowsScanned(job.getRowsScanned() + rows.size());
         job.setAfterId(cursor.getAfterId());
         job.setAfterUpdateTime(cursor.getAfterUpdateTime());
         mapper.updateJob(job);
     }
 
     private void retire(PreparedDocument previous, long revision) {
-        if (Objects.equals(previous.getValidFrom(),revision)) {
+        if (Objects.equals(previous.getValidFrom(), revision)) {
             // A source may be observed again after a late commit. Replace its unpublished version atomically.
-            for (String type : PreparedMetadataParser.TYPES) mapper.deleteDocumentMembers(PreparedMetadataParser.table(type),previous.getId());
+            for (String type : PreparedMetadataParser.TYPES)
+                mapper.deleteDocumentMembers(PreparedMetadataParser.table(type), previous.getId());
             mapper.deleteDocument(previous.getId());
-        } else mapper.close(previous.getId(),revision);
+        } else mapper.close(previous.getId(), revision);
     }
 
-    private PreparedDocument document(String code,SourcePublicationRecord r,long revision,Map<String,String> routes) {
-        var d=new PreparedDocument();
+    private PreparedDocument document(String code, SourcePublicationRecord r, long revision, Map<String, String> routes) {
+        var d = new PreparedDocument();
         d.setSourceCode(code);
         d.setSourceKey(sourceKey(r));
         d.setSourceHash(PublicationValues.sha(d.getSourceKey()));
         d.setPmid(clean(r.getPmid()));
         d.setDoi(doi(r.getDoi()));
-        d.setRecordKind("RESOURCE".equals(r.getRecordKind())?"RESOURCE":"PUBLICATION");
-        d.setDocumentKey("RESOURCE".equals(d.getRecordKind())?"S:"+PublicationValues.sha(code+":"+d.getSourceKey()):d.getPmid()!=null?"P:"+d.getPmid():d.getDoi()!=null?"D:"+PublicationValues.sha(d.getDoi()):"S:"+PublicationValues.sha(code+":"+d.getSourceKey()));
+        d.setRecordKind("RESOURCE".equals(r.getRecordKind()) ? "RESOURCE" : "PUBLICATION");
+        d.setDocumentKey("RESOURCE".equals(d.getRecordKind()) ? "S:" + PublicationValues.sha(code + ":" + d.getSourceKey()) : d.getPmid() != null ? "P:" + d.getPmid() : d.getDoi() != null ? "D:" + PublicationValues.sha(d.getDoi()) : "S:" + PublicationValues.sha(code + ":" + d.getSourceKey()));
         d.setTitle(r.getTitle());
         d.setJournalTitle(r.getJournalTitle());
         d.setPubYear(r.getPubYear());
         d.setResourceAccession(r.getResourceAccession());
         d.setGsaAccessions(r.getGsaAccessions());
         d.setBioprojectAccession(r.getBioprojectAccession());
-        d.setPrimaryFlag(Boolean.TRUE.equals(r.getPrimaryFlag())||membership.belongs(code,r.getCncbBanksJson(),routes));
-        d.setSourceUrl("RESOURCE".equals(d.getRecordKind())?r.getResourceUrl():r.getSourceUrl()!=null&&!r.getSourceUrl().isBlank()?r.getSourceUrl():PublicationLinks.external(r.getPmid(),r.getDoi(),r.getGsaAccessions(),r.getBioprojectAccession(),r.getCncbBanksJson(),json));
+        d.setPrimaryFlag(Boolean.TRUE.equals(r.getPrimaryFlag()) || membership.belongs(code, r.getCncbBanksJson(), routes));
+        d.setSourceUrl("RESOURCE".equals(d.getRecordKind()) ? r.getResourceUrl() : r.getSourceUrl() != null && !r.getSourceUrl().isBlank() ? r.getSourceUrl() : PublicationLinks.external(r.getPmid(), r.getDoi(), r.getGsaAccessions(), r.getBioprojectAccession(), r.getCncbBanksJson(), json));
         d.setValidFrom(revision);
         d.setSeenRun(revision);
         return d;
     }
-    private Map<String,String> loadDictionary(List<SourcePublicationRecord> rows) {
-        Set<String> ids=new LinkedHashSet<>();
-        for(var r:rows)ids.addAll(FundAgencyParser.missingAgencyGrantIds(r.getGrantsJson(),json));
-        Map<String,String> result=new HashMap<>();
-        var list=new ArrayList<>(ids);
-        for(int i=0;
-        i<list.size();
-        i+=200)for(var entry:dictionaries.selectFundDictionaryByGrantIds(list.subList(i,Math.min(i+200,list.size()))))result.put(entry.getGrantId().toLowerCase(Locale.ROOT),entry.getFullName());
+
+    private Map<String, String> loadDictionary(List<SourcePublicationRecord> rows) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (var r : rows) ids.addAll(FundAgencyParser.missingAgencyGrantIds(r.getGrantsJson(), json));
+        Map<String, String> result = new HashMap<>();
+        var list = new ArrayList<>(ids);
+        for (int i = 0;
+             i < list.size();
+             i += 200)
+            for (var entry : dictionaries.selectFundDictionaryByGrantIds(list.subList(i, Math.min(i + 200, list.size()))))
+                result.put(entry.getGrantId().toLowerCase(Locale.ROOT), entry.getFullName());
         return result;
     }
-    private void finish(PreparationJob job,String status,String error) {
+
+    private void finish(PreparationJob job, String status, String error) {
         job.setStatus(status);
         job.setErrorMessage(error);
         job.setCompletedTime(LocalDateTime.now());
         mapper.updateJob(job);
     }
+
     private String encode(Object value) {
         try {
             return json.writeValueAsString(value);
-        }
-        catch(Exception e) {
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }
+
     public List<String> decode(String value) {
         try {
-            return json.readValue(value,json.getTypeFactory().constructCollectionType(List.class,String.class));
-        }
-        catch(Exception e) {
+            return json.readValue(value, json.getTypeFactory().constructCollectionType(List.class, String.class));
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }
+
     private static String sourceKey(SourcePublicationRecord r) {
-        if(clean(r.getSourceRecordKey())==null)throw new IllegalStateException("Missing source business key");
+        if (clean(r.getSourceRecordKey()) == null) throw new IllegalStateException("Missing source business key");
         return r.getSourceRecordKey();
     }
+
     public static String doi(String value) {
-        String s=clean(value);
-        return s==null?null:s.toLowerCase(Locale.ROOT).replaceFirst("^https?://(dx\\.)?doi\\.org/", "").replaceFirst("^doi:\\s*", "");
+        String s = clean(value);
+        return s == null ? null : s.toLowerCase(Locale.ROOT).replaceFirst("^https?://(dx\\.)?doi\\.org/", "").replaceFirst("^doi:\\s*", "");
     }
+
     private static String clean(String v) {
-        return v==null||v.isBlank()||"null".equalsIgnoreCase(v.trim())?null:v.trim();
+        return v == null || v.isBlank() || "null".equalsIgnoreCase(v.trim()) ? null : v.trim();
     }
-    private static String truncate(String v,int n) {
-        return v==null?"Preparation failed":v.substring(0,Math.min(v.length(),n));
+
+    private static String truncate(String v, int n) {
+        return v == null ? "Preparation failed" : v.substring(0, Math.min(v.length(), n));
     }
+
     private static BusinessException conflict(String m) {
-        return new BusinessException(HttpStatus.CONFLICT,"PREPARATION_NOT_READY",m);
+        return new BusinessException(HttpStatus.CONFLICT, "PREPARATION_NOT_READY", m);
     }
-    @PreDestroy public void shutdown() {
+
+    @PreDestroy
+    public void shutdown() {
         stop.set(true);
         executor.shutdown();
         try {
-            if(!executor.awaitTermination(10,TimeUnit.SECONDS))executor.shutdownNow();
-        }
-        catch(InterruptedException ex) {
+            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) executor.shutdownNow();
+        } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             executor.shutdownNow();
         }

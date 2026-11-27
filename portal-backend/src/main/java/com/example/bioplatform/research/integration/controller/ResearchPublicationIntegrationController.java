@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/research-publications/integration")
 @Tag(name = "全局文献整合", description = "采集变化自动增量同步；提供人工全量重建入口")
 public class ResearchPublicationIntegrationController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final ResearchPublicationIntegrationService service;
 
     /**

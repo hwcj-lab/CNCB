@@ -7,6 +7,9 @@ import org.springframework.web.servlet.config.annotation.*;
 /** Web 层公共配置，目前仅开放受控来源对 API 的跨域访问。 */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+    /**
+     * origins：允许访问后端的前端跨域来源配置。
+     */
     @Value("${app.cors-origins}")
     private String[] origins;
 

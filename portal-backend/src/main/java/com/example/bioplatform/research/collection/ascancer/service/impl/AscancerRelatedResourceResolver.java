@@ -20,8 +20,17 @@ import java.util.*;
 @Component
 @RequiredArgsConstructor
 public class AscancerRelatedResourceResolver implements RelatedResourceResolver {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final RelatedResourceHttpClient http;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * endpoint：上游接口地址，由配置或默认值提供。
+     */
     @Value("${app.ascancer.knowledge-endpoint:https://ngdc.cncb.ac.cn/ascancer/api/browse/knowledge}")
     private String endpoint;
 

@@ -16,6 +16,7 @@
         </where>
         ORDER BY d.id
     </select>
+    <!-- 按 CNCB 数据库业务标识批量查询，避免逐条检索。 -->
     <select id="findResourcesByDbIds" resultType="com.example.bioplatform.catalog.entity.DatabaseResource">
         SELECT DISTINCT d.*
         FROM database_resource d
@@ -30,18 +31,21 @@
           )
         ORDER BY d.id
     </select>
+    <!-- 查询一个数据库的全部数据类型标签。 -->
     <select id="findTypes" resultType="com.example.bioplatform.catalog.entity.DataType">
         SELECT t.*,r.relation_role,r.relation_note
         FROM data_type t JOIN database_data_type r ON r.data_type_id=t.id
         WHERE r.database_id=#{id} AND t.is_visible=TRUE AND t.status='ENABLED'
         ORDER BY t.sort_order,t.id
     </select>
+    <!-- 查询一个数据库的全部关联工具。 -->
     <select id="findTools" resultType="com.example.bioplatform.catalog.entity.OnlineTool">
         SELECT t.*,r.relation_type,r.relation_basis
         FROM online_tool t JOIN database_tool r ON r.tool_id=t.id
         WHERE r.database_id=#{id} AND t.is_visible=TRUE AND t.status='ENABLED'
         ORDER BY t.id
     </select>
+    <!-- 批量查询数据库与数据类型关系，用于内存分组。 -->
     <select id="findTypeRelationsByDatabaseIds" resultType="com.example.bioplatform.catalog.vo.DatabaseTypeRelation">
         SELECT r.database_id AS database_id,t.code AS data_type_code
         FROM database_data_type r
@@ -53,6 +57,7 @@
           </foreach>
         ORDER BY t.sort_order,t.id,r.database_id
     </select>
+    <!-- 批量查询多个数据库关联的工具，避免 N+1 查询。 -->
     <select id="findToolsByDatabaseIds" resultType="com.example.bioplatform.catalog.entity.OnlineTool">
         SELECT t.*,r.database_id AS relation_database_id,r.relation_type,r.relation_basis
         FROM online_tool t

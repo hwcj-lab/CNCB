@@ -29,19 +29,49 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ResearchPublicationIntegrationServiceImpl implements ResearchPublicationIntegrationService {
+    /**
+     * BATCH_SIZE：本组件批量处理的固定数量上限。
+     */
     private static final int BATCH_SIZE = 500;
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchSnapshotMapper mapper;
+    /**
+     * registry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry registry;
+    /**
+     * objectMapper：JSON解析与序列化组件。
+     */
     private final ObjectMapper objectMapper;
+    /**
+     * transactionTemplate：事务执行模板。
+     */
     private final TransactionTemplate transactionTemplate;
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     */
     private final AtomicBoolean running = new AtomicBoolean();
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(task, "research-publication-integrator");
         thread.setDaemon(true);
         return thread;
     });
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     */
     private volatile String message = "整合表尚未执行全量重建";
+    /**
+     * processed：本次处理的记录数或累计处理次数。
+     */
     private volatile long processed;
+    /**
+     * total：当前范围内的总量。
+     */
     private volatile long total;
 
     /**
@@ -203,18 +233,59 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
      * 全局去重键按PMID、DOI、来源记录键顺序选择。
      */
     private static final class MergedRecord {
+        /**
+         * key：当前对象的业务匹配键。
+         */
         final String key;
+        /**
+         * kind：当前记录或处理结果的类别。
+         * resourceAccession：原库资源登录号，无文献资源也据此定位。
+         * resourceUrl：无文献资源可直接跳转的原库地址。
+         */
         String kind = "PUBLICATION", resourceAccession, resourceUrl;
+        /**
+         * pmid：已有PubMed标识；为空时不通过标题猜补。
+         * doi：DOI标识；匹配前按调用链统一规范化。
+         * title：文献、资源或展示对象的标题。
+         * journalTitle：文献期刊名称。
+         * authorsJson：逐作者原始信息及作者所属机构的JSON载荷。
+         * affiliationInfo：来源提供的机构汇总原文，不应随意分配给所有作者。
+         * grantsJson：保留完整资助记录的JSON载荷，便于整理时重新解析。
+         * keywordList：来源提供的论文关键词载荷。
+         * meshHeadingsJson：PubMed MeSH主题词的原始JSON。
+         * cncbBanksJson：CNCB资源关联数组，包含db、accession和link等。
+         */
         String pmid, doi, title, journalTitle, authorsJson, affiliationInfo, grantsJson, keywordList, meshHeadingsJson, cncbBanksJson;
+        /**
+         * pubYear：解析后的文献发表年份，缺失时为空。
+         */
         Integer pubYear;
+        /**
+         * primary：是否属于原始或本库记录，具体归属由来源判定。
+         */
         boolean primary;
+        /**
+         * sourceCodes：参与本次处理的来源编码集合或拼接值。
+         */
         final SortedSet<String> sourceCodes = new TreeSet<>();
+        /**
+         * recordKeys：参与身份合并的来源记录键集合。
+         */
         final Map<String, String> recordKeys = new TreeMap<>();
 
+        /**
+         * 构造MergedRecord，注入本组件所需依赖并建立初始状态。
+         * @param key 当前对象的业务匹配键
+         */
         MergedRecord(String key) {
             this.key = key;
         }
 
+        /**
+         * 合并当前业务对象的互补信息，按本类规则去重，避免用空字段覆盖已有有效值。
+         * @param row 本次处理的一条记录
+         * @param objectMapper JSON解析与序列化组件
+         */
         void merge(SourcePublicationRecord row, ObjectMapper objectMapper) {
             kind = row.getRecordKind();
             resourceAccession = row.getResourceAccession();
@@ -236,6 +307,12 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
                 pubYear = row.getPubYear();
         }
 
+        /**
+         * 在两个候选文本中选择有效且更完整的一个，具体优先规则由当前合并方法限定。
+         * @param left 规范化或排序后的左端值
+         * @param right 规范化或排序后的右端值
+         * @return 按上述规则计算或读取的String结果
+         */
         private static String longer(String left, String right) {
             if (!notBlank(right)) return left;
             return !notBlank(left) || right.length() > left.length() ? right : left;
@@ -250,6 +327,11 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         return new PublicationIntegrationStatus(running.get(), message, processed, total);
     }
 
+    /**
+     * 清理字段两端空白和无意义缺失值，返回可参与比较的规范文本。
+     * @param values 待遍历或去重的值集合
+     * @return 按上述规则计算或读取的List<String>结果
+     */
     private static List<String> clean(List<String> values) {
         if (values == null) return List.of();
         return values.stream().filter(ResearchPublicationIntegrationServiceImpl::notBlank).map(String::trim).distinct().toList();
@@ -262,6 +344,12 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         return doi == null ? null : doi.trim().replaceFirst("(?i)^https?://(dx\\.)?doi\\.org/", "").replaceFirst("(?i)^doi:\\s*", "").toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 把作者载荷中的机构汇总为兼容字段，不用汇总结果反向分配作者机构。
+     * @param authorsJson 逐作者原始信息及作者所属机构的JSON载荷
+     * @param direct 是否为原始直接归属记录
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String affiliationSummary(String authorsJson, String direct) {
         if (notBlank(direct)) return direct;
         if (!notBlank(authorsJson)) return null;
@@ -274,6 +362,11 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         }
     }
 
+    /**
+     * 递归收集载荷中的机构字段，用于机构原文汇总。
+     * @param node 当前JSON、XML或队列节点
+     * @param output 本次转换的输出对象
+     */
     private static void collectAffiliations(com.fasterxml.jackson.databind.JsonNode node, Set<String> output) {
         if (node == null) return;
         if (node.isArray()) node.forEach(child -> collectAffiliations(child, output));
@@ -285,10 +378,20 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         });
     }
 
+    /**
+     * 判断文本是否具有非空内容，供解析和合并前过滤。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean notBlank(String value) {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * 将可空字段转换为当前调用约定的安全值，避免空引用中断批处理。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String safe(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
@@ -304,6 +407,11 @@ public class ResearchPublicationIntegrationServiceImpl implements ResearchPublic
         }
     }
 
+    /**
+     * 从异常提取可保存的简短说明，不向接口暴露完整堆栈。
+     * @param ex 当前捕获的异常
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String safeMessage(Exception ex) {
         return ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
     }

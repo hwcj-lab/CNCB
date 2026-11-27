@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper">
+    <!-- 写入本方法指定的记录；涉及${table}表。唯一键冲突按SQL合并已有字段。动态表标识只能来自服务端白名单。 -->
     <insert id="write">
         INSERT INTO ${table}(pmid,doi,title,abstract_text,pub_year,journal_title,source_url,
         authors_json,affiliation_info,keyword_list,mesh_headings_json,grants_json,cncb_banks_json,raw_payload,source_hash,fetched_at)
@@ -28,6 +29,7 @@
         raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
         source_hash=VALUES(source_hash)
     </insert>
+    <!-- 写入本方法指定的记录；涉及genbase_publication表。唯一键冲突按SQL合并已有字段。 -->
     <insert id="writeGenBase">
         INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
         openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
@@ -54,18 +56,23 @@
         openlb_raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(openlb_raw_payload),openlb_raw_payload),
         source_hash=VALUES(source_hash)
     </insert>
+    <!-- 查询本方法指定的记录；涉及openlb_pmid_task表。 -->
     <select id="inventoryPage" resultType="string">
         SELECT pmid FROM openlb_pmid_task WHERE pmid &gt; #{after} ORDER BY pmid LIMIT 100
     </select>
+    <!-- 查询本方法指定的记录；涉及openlb_bank_inventory_job表。 -->
     <select id="cursor" resultType="string">
         SELECT cursor_pmid FROM openlb_bank_inventory_job WHERE id=1
     </select>
+    <!-- 更新本方法指定的记录；涉及openlb_bank_inventory_job表。 -->
     <update id="progress">
         UPDATE openlb_bank_inventory_job SET cursor_pmid=#{cursor},message=#{message},update_time=NOW() WHERE id=1
     </update>
+    <!-- 查询本方法指定的记录；涉及openlb_bank_route表。 -->
     <select id="routes" resultType="map">
         SELECT * FROM openlb_bank_route WHERE enabled=1
     </select>
+    <!-- 写入本方法指定的记录；涉及openlb_bank_inventory表。唯一键冲突按SQL合并已有字段。 -->
     <insert id="inventory">
         INSERT INTO openlb_bank_inventory(pmid,bank_index,name,accession,link,db,bank_pmid)
         VALUES(#{pmid},#{idx},#{name},#{accession},#{link},#{db},#{bankPmid}) ON DUPLICATE KEY UPDATE
@@ -76,12 +83,15 @@
         SELECT db,COUNT(*) records,COUNT(DISTINCT pmid) publications FROM openlb_bank_inventory GROUP BY db ORDER BY
         records DESC
     </select>
+    <!-- 查询本方法指定的记录；涉及openlb_bank_inventory表。 -->
     <select id="inventoryRows" resultType="map">
         SELECT * FROM openlb_bank_inventory ORDER BY pmid,bank_index LIMIT #{size} OFFSET #{offset}
     </select>
+    <!-- 查询本方法指定的记录；涉及openlb_publication表。 -->
     <select id="legacy" resultType="com.example.bioplatform.research.collection.openlb.dto.OpenLbPublicationWriteRow">
         SELECT * FROM openlb_publication WHERE id&gt;#{after} ORDER BY id LIMIT 100
     </select>
+    <!-- 写入本方法指定的记录；涉及research_publication_relation表。已有唯一键冲突时跳过重复插入。 -->
     <insert id="copyRelations">
         INSERT IGNORE INTO
         research_publication_relation(database_code,left_identifier_type,left_identifier,right_identifier_type,right_identifier,evidence_url,discovery_depth,active)
@@ -92,6 +102,7 @@
         (right_identifier_type='PMID' AND right_identifier IN <foreach collection='pmids' item='v' open='(' close=')'
                                                                        separator=','>#{v}</foreach>))
     </insert>
+    <!-- 更新本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <update id="promotePrimary">
       UPDATE ${table} SET is_primary=1 WHERE is_primary=0 AND (1=0
       <if test="pmids.size()>0">OR pmid IN <foreach collection="pmids" item="p" open="(" close=")" separator=",">#{p}</foreach></if>

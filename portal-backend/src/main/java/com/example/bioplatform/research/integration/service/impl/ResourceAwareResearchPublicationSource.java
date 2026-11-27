@@ -10,9 +10,20 @@ import java.util.*;
  * 同库文献/无文献资源合并为一条有序分页流；偶数游标为原文献，奇数为资源。
  */
 final class ResourceAwareResearchPublicationSource implements ResearchPublicationSource {
+    /**
+     * papers：文献来源适配器，与资源来源一起组成统一扫描流。
+     */
     private final ResearchPublicationSource papers;
+    /**
+     * resources：资源结果、资源来源或资源缓存，类型决定具体用途。
+     */
     private final ResearchResourceMapper resources;
 
+    /**
+     * 构造ResourceAwareResearchPublicationSource，注入本组件所需依赖并建立初始状态。
+     * @param papers 文献来源适配器，与资源来源一起组成统一扫描流
+     * @param resources 资源结果、资源来源或资源缓存，类型决定具体用途
+     */
     ResourceAwareResearchPublicationSource(ResearchPublicationSource papers, ResearchResourceMapper resources) {
         this.papers = papers;
         this.resources = resources;

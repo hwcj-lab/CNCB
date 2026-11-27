@@ -21,9 +21,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 @RequiredArgsConstructor
 public class OpenLbBankInventoryService {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final OpenLbRoutingMapper mapper;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     * stop：停止请求标记或用于检查停止状态的回调。
+     */
     private final AtomicBoolean running = new AtomicBoolean(), stop = new AtomicBoolean();
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     */
     private volatile String message = "未启动";
 
     /**
@@ -53,6 +66,9 @@ public class OpenLbBankInventoryService {
         return status();
     }
 
+    /**
+     * 逐PMID读取OpenLB并保存cncbBanks盘点条目；每个PMID保存成功后持久化游标，失败时保留断点。
+     */
     private void run() {
         String cursor = Optional.ofNullable(mapper.cursor()).orElse("");
         try {

@@ -15,7 +15,13 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class GsaResearchPublicationSource implements ResearchPublicationSource {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final GsaSourceMapper mapper;
+    /**
+     * routes：来源路由持久层或已加载的路由配置。
+     */
     private final com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes;
 
     /**

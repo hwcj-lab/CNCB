@@ -20,7 +20,13 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class BioProjectRelatedResourceResolver implements RelatedResourceResolver {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final RelatedResourceHttpClient http;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
     /**

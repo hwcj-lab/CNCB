@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/collection/gsa")
 @RequiredArgsConstructor
 public class GsaCollectionController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final GsaCollectionService service;
 
     /**
@@ -56,6 +59,11 @@ public class GsaCollectionController {
         return ApiResponse.ok(service.resetEnrichment());
     }
 
+    /**
+     * 返回当前采集器的配置及实际启用入口，便于核对来源与请求方式。
+     * @param r 当前响应、记录或文献对象
+     * @return 按上述规则计算或读取的GsaCollectionStartRequest结果
+     */
     private GsaCollectionStartRequest config(GsaCollectionStartRequest r) {
         return r == null ? new GsaCollectionStartRequest(null, null, null) : r;
     }

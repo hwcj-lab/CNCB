@@ -9,6 +9,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * 原始项目机构保留在原始论文载荷内；只从论文元数据提取作者署名。
  */
 public final class BioProjectPublicationParser {
+    /**
+     * 从项目或列表记录提取明确的BioProject编号。
+     * @param row 本次处理的一条记录
+     * @return 按上述规则计算或读取的String结果
+     */
     public static String projectCode(JsonNode row) {
         String code = com.example.bioplatform.research.common.PublicationValues.text(row, "accession");
         if (!code.matches("PRJ(?:CA|NA|EB|DA)[A-Z0-9]+"))
@@ -16,6 +21,12 @@ public final class BioProjectPublicationParser {
         return code;
     }
 
+    /**
+     * 将本类约定的原始输入转换成规范结构；不以字段缺失为由猜造PMID或作者归属。
+     * @param row 本次处理的一条记录
+     * @param json JSON解析与序列化组件
+     * @return 按上述规则计算或读取的BioProjectPublicationSeed结果
+     */
     public static BioProjectPublicationSeed parse(JsonNode row, ObjectMapper json) {
         var converted = row.deepCopy();
         var object = (com.fasterxml.jackson.databind.node.ObjectNode) converted;

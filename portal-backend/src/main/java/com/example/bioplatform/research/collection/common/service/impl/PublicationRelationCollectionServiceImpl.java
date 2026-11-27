@@ -31,27 +31,76 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 @RequiredArgsConstructor
 public class PublicationRelationCollectionServiceImpl implements PublicationRelationCollectionService {
+    /**
+     * sourceRegistry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry sourceRegistry;
 
+    /**
+     * 返回当前接口范围内可用的数据库列表，关联采集和快照场景各自使用对应来源配置。
+     * @return 按上述规则计算或读取的Set<String>结果
+     */
     private Set<String> databases() {
         var codes = new HashSet<String>();
         sourceRegistry.all().forEach(s -> codes.add(s.sourceCode()));
         return codes;
     }
 
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final PublicationRelationCollectionMapper mapper;
+    /**
+     * resourceMapper：无文献资源的持久层接口。
+     */
     private final com.example.bioplatform.research.integration.mapper.ResearchResourceMapper resourceMapper;
+    /**
+     * nativeRelated：无PMID出版记录的来源专用写入组件。
+     */
     private final NativeRelatedPublicationWriter nativeRelated;
+    /**
+     * publicationIntegration：旧全量文献整合服务，不等同于独立数据整理。
+     */
     private final ResearchPublicationIntegrationService publicationIntegration;
+    /**
+     * discoveryFactory：按现有元数据选择关联发现路径的工厂。
+     */
     private final com.example.bioplatform.research.collection.common.service.relation.RelationDiscoveryFactory discoveryFactory;
+    /**
+     * publicationStore：关联文献当前来源的合并写入门面。
+     */
     private final com.example.bioplatform.research.collection.common.service.relation.RelatedPublicationStore publicationStore;
+    /**
+     * identifierFactory：按来源选择唯一值解释器的工厂。
+     */
     private final com.example.bioplatform.research.collection.common.service.relation.RelationIdentifierFactory identifierFactory;
+    /**
+     * detailsClient：按已有PMID读取OpenLB及PubMed详情的客户端。
+     */
     private final com.example.bioplatform.research.collection.openlb.service.relation.OpenLbPublicationDetailsClient detailsClient;
+    /**
+     * publicationAssembler：将上游元数据转换成统一入库记录的组件。
+     */
     private final com.example.bioplatform.research.collection.common.service.relation.RelatedPublicationAssembler publicationAssembler;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> daemon(r, "publication-relation-job"));
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     */
     private final AtomicBoolean running = new AtomicBoolean(false);
+    /**
+     * stopRequested：是否收到人工停止请求。
+     */
     private final AtomicBoolean stopRequested = new AtomicBoolean(false);
+    /**
+     * activeJobId：当前进程正在执行的关联采集作业ID。
+     */
     private volatile Long activeJobId;
 
 
@@ -331,14 +380,36 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         mapper.incrementJob(jobId, 1, newPublications, relations);
     }
 
+    /**
+     * 判断当前来源唯一键是否表示无文献资源，而不是普通论文记录。
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean isResource(String type, String key) {
         return "SOURCE_KEY".equals(type) && key != null && key.startsWith("RESOURCE:");
     }
 
+    /**
+     * 根据唯一值类型读取来源文献或资源的关联发现输入。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的RelationSourceRecord结果
+     */
     private RelationSourceRecord sourceRecord(String code, String type, String key) {
         return isResource(type, key) ? resourceMapper.relationSource(code, key.substring(9)) : mapper.selectSourceRecord(code, type, key);
     }
 
+    /**
+     * 按来源文献或资源类型更新关联检查状态及错误说明。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @param status 当前对象的业务状态，由对应任务或目录状态机定义
+     * @param error 本次处理产生的错误信息
+     * @return 按上述规则计算或读取的int结果
+     */
     private int updateRelationStatus(String code, String type, String key, String status, String error) {
         return isResource(type, key) ? resourceMapper.relationStatus(code, key.substring(9), status, error) : mapper.updatePublicationRelationStatus(code, type, key, status, error);
     }
@@ -377,6 +448,9 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
     private void submitAfterCommit(Runnable task) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                /**
+                 * 事务提交完成后调度后台任务，保证新线程可读取已持久化的作业和根队列。
+                 */
                 @Override
                 public void afterCommit() {
                     executor.submit(task);
@@ -395,6 +469,11 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         return a.compareTo(b) <= 0 ? new CanonicalPair(typeA, valueA, typeB, valueB) : new CanonicalPair(typeB, valueB, typeA, valueA);
     }
 
+    /**
+     * 读取并校验作业存在性；缺失时返回业务异常，而不是使用空作业继续处理。
+     * @param jobId 所属持久化任务或作业ID
+     * @return 按上述规则计算或读取的PublicationRelationJobStatus结果
+     */
     private PublicationRelationJobStatus requireJob(long jobId) {
         PublicationRelationJobStatus value = mapper.selectJob(jobId);
         if (value == null)
@@ -402,6 +481,11 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         return value;
     }
 
+    /**
+     * 构造带稳定错误码的业务冲突异常，交由全局异常处理器统一返回。
+     * @param message 响应说明、当前阶段说明或错误提示
+     * @return 按上述规则计算或读取的BusinessException结果
+     */
     private BusinessException conflict(String message) {
         return new BusinessException(HttpStatus.CONFLICT, "RELATION_JOB_RUNNING", message);
     }
@@ -413,19 +497,40 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
         return value.trim().replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/", "").toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 按配置等待下一次上游请求，人工停止或线程中断时不继续发起请求。
+     * @param ms 等待时长，单位毫秒
+     */
     private static void sleep(long ms) throws InterruptedException {
         if (ms > 0) Thread.sleep(ms);
     }
 
+    /**
+     * 按持久化字段的长度上限截断说明文本，防止错误记录本身写库失败。
+     * @param value 待校验、转换或合并的值
+     * @param max 允许的最大值或文本长度上限
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String abbreviate(String value, int max) {
         return value == null ? null : value.substring(0, Math.min(value.length(), max));
     }
 
+    /**
+     * 沿异常原因链定位根因，供作业状态记录实际失败说明。
+     * @param e 当前异常或XML元素，按声明类型解释
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String rootMessage(Throwable e) {
         while (e.getCause() != null) e = e.getCause();
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
+    /**
+     * 创建后台守护线程，线程名称由本组件指定，不阻止应用正常退出。
+     * @param r 当前响应、记录或文献对象
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的Thread结果
+     */
     private static Thread daemon(Runnable r, String name) {
         Thread t = new Thread(r, name);
         t.setDaemon(true);
@@ -433,9 +538,22 @@ public class PublicationRelationCollectionServiceImpl implements PublicationRela
     }
 
 
+    /**
+     * 关联作业的根来源编码、唯一值类型及内容，不等同于全局文献实体。
+     * @param databaseCode 数据库来源编码或目录业务编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param value 待校验、转换或合并的值
+     */
     private record RootIdentifier(String databaseCode, String type, String value) {
     }
 
+    /**
+     * 按稳定顺序排列的文献对，保证反向发现仍落在同一条无序关联边。
+     * @param leftType 左端文献标识类型
+     * @param leftValue 左端文献标识值
+     * @param rightType 右端文献标识类型
+     * @param rightValue 右端文献标识值
+     */
     private record CanonicalPair(String leftType, String leftValue, String rightType, String rightValue) {
     }
 

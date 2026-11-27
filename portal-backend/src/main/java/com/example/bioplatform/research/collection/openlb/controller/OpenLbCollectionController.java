@@ -10,11 +10,17 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * OpenLB主采集管理入口；导入PMID、启动/停止和失败重试分别由独立接口控制。
+ */
 @RestController
 @RequestMapping("/api/collection/openlb")
 @RequiredArgsConstructor
 @Tag(name = "OpenLB文献采集", description = "独立的OpenLB离线采集流程，不归属任务一目录推荐或任务二统计查询")
 public class OpenLbCollectionController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final OpenLbCollectionService service;
 
     /**

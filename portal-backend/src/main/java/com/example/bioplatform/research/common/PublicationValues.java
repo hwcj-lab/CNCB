@@ -11,9 +11,18 @@ import java.util.Locale;
  * 共享字段读取、DOI规范化和来源摘要；不访问数据库或网络。
  */
 public final class PublicationValues {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private PublicationValues() {
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param row 本次处理的一条记录
+     * @param field 要读取或匹配的字段名
+     * @return 按上述规则计算或读取的String结果
+     */
     public static String text(JsonNode row, String field) {
         JsonNode n = row.get(field);
         String v = n == null || n.isNull() ? "" : n.asText("").trim();

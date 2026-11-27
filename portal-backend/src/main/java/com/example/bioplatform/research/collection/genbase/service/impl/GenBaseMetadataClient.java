@@ -25,15 +25,33 @@ import java.util.function.Consumer;
  */
 @Component
 public class GenBaseMetadataClient {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final CollectionHttpTransport http;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * metadata：来源元数据补全组件或规范化元数据结果。
+     */
     private final PublicationMetadataEnricher metadata;
 
+    /**
+     * 构造GenBaseMetadataClient，注入本组件所需依赖并建立初始状态。
+     * @param json JSON解析与序列化组件
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public GenBaseMetadataClient(ObjectMapper json) {
         this(new CollectionHttpTransport(), json);
     }
 
+    /**
+     * 构造GenBaseMetadataClient，注入本组件所需依赖并建立初始状态。
+     * @param http 共享HTTP传输组件或HTTP客户端
+     * @param json JSON解析与序列化组件
+     */
     GenBaseMetadataClient(CollectionHttpTransport http, ObjectMapper json) {
         this.http = http;
         this.json = json;
@@ -134,6 +152,11 @@ public class GenBaseMetadataClient {
         return first;
     }
 
+    /**
+     * 核对来源已提供的PMID、DOI及项目标识，不通过标题搜索生成缺失PMID。
+     * @param task 当前待处理的元数据任务
+     * @param out 用于累计解析结果的输出对象
+     */
     private static void validateIdentifiers(PublicationEnrichmentTask task, PublicationEnrichmentWrite out) {
         if (!blank(task.getPmid()) && !blank(out.getPmid()) && !task.getPmid().equals(out.getPmid()))
             throw new IllegalStateException("补全PMID与原记录不一致，保留原文献等待核对");
@@ -141,20 +164,40 @@ public class GenBaseMetadataClient {
             throw new IllegalStateException("补全DOI与原记录不一致，保留原文献等待核对");
     }
 
+    /**
+     * 整理标题大小写、标记和空白，仅供已有候选范围内比较。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String normalizedTitle(String value) {
         return safe(value).replaceAll("<[^>]+>", " ").toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
+    /**
+     * 生成本次调用需要的空JSON数组，避免用null代替约定的集合结构。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private boolean emptyArray(String value) throws Exception {
         if (blank(value)) return true;
         JsonNode node = json.readTree(value);
         return node == null || node.isNull() || node.isArray() && node.isEmpty();
     }
 
+    /**
+     * 判断文本是否为空或仅有空白，避免空数据覆盖原有有效内容。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean blank(String value) {
         return value == null || value.isBlank();
     }
 
+    /**
+     * 将可空字段转换为当前调用约定的安全值，避免空引用中断批处理。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String safe(String value) {
         return value == null ? "" : value;
     }

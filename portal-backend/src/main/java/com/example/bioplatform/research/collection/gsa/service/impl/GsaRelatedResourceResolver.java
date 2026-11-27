@@ -20,8 +20,17 @@ import java.util.Set;
 @Component
 @RequiredArgsConstructor
 public class GsaRelatedResourceResolver implements RelatedResourceResolver {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final RelatedResourceHttpClient http;
+    /**
+     * projects：BioProject元数据访问组件或项目结果集合。
+     */
     private final BioProjectRelatedResourceResolver projects;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
     /**

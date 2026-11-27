@@ -15,13 +15,16 @@
         FROM genbase_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
     </select>
 
+    <!-- 创建一次从start=0开始的完整扫描作业。 -->
     <insert id="createJob">
         INSERT INTO genbase_collection_job(status,next_start,page_size,started_time,create_time,update_time)
         VALUES('RUNNING',0,#{pageSize},NOW(),NOW(),NOW())
     </insert>
 
+    <!-- 获取刚创建的作业主键。 -->
     <select id="lastInsertId" resultType="java.lang.Long">SELECT LAST_INSERT_ID()</select>
 
+    <!-- 恢复作业并按本次请求更新页大小。 -->
     <update id="resumeJob">
         UPDATE genbase_collection_job
         SET status='RUNNING',page_size=#{pageSize},attempt_count=0,last_error=NULL,
@@ -29,6 +32,7 @@
         WHERE id=#{jobId} AND status IN ('STOPPED','FAILED')
     </update>
 
+    <!-- 查询最近作业，用于状态接口。 -->
     <select id="findLatestJob" resultType="com.example.bioplatform.research.collection.genbase.vo.GenBaseJobState">
         SELECT id job_id,status job_status,next_start,page_size,records_total,rows_seen,rows_inserted,
                attempt_count,last_error,started_time,completed_time
@@ -74,12 +78,14 @@
         WHERE id=#{jobId} AND status='RUNNING'
     </update>
 
+    <!-- 记录当前页失败次数和错误，但不推进断点。 -->
     <update id="recordFailure">
         UPDATE genbase_collection_job
         SET attempt_count=attempt_count+1,last_error=#{error},update_time=NOW()
         WHERE id=#{jobId}
     </update>
 
+    <!-- 将作业置为最终状态。 -->
     <update id="finishJob">
         UPDATE genbase_collection_job
         SET status=#{status},last_error=#{error},completed_time=NOW(),update_time=NOW()
@@ -101,12 +107,14 @@
         WHERE paper_id IS NOT NULL AND is_primary=1
     </update>
 
+    <!-- 批量领取待补全主文献；PMID可空，成功/NO_PMID结果不自动重复查询。 -->
     <select id="findPendingEnrichment" resultType="com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask">
         SELECT id,paper_id,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,bioproject_accession,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,grants_json,cncb_banks_json FROM genbase_publication
         WHERE openlb_status='PENDING' AND paper_id IS NOT NULL AND is_primary=1
         ORDER BY id LIMIT #{limit}
     </select>
 
+    <!-- 将领取的一批记录标记为RUNNING。 -->
     <update id="markEnrichmentRunning">
         UPDATE genbase_publication
         SET openlb_status='RUNNING',openlb_last_attempt_time=NOW(),update_time=NOW()
@@ -114,6 +122,7 @@
         <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </update>
 
+    <!-- 查询本方法指定的记录；涉及genbase_publication表。在调用方事务内加行锁，防止并发补全覆盖。 -->
     <select id="lockEnrichment" resultType="com.example.bioplatform.research.collection.genbase.dto.GenBasePmidTask">
         SELECT id,paper_id,pmid,doi,paper_title title,publish_year pub_year,journal_name journal_title,bioproject_accession,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,grants_json,cncb_banks_json FROM genbase_publication WHERE paper_id IN
         <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach> ORDER BY id FOR UPDATE
@@ -135,6 +144,7 @@
         WHERE paper_id IN <foreach collection="rows" item="r" open="(" separator="," close=")">#{r.paperId}</foreach>
     </update>
 
+    <!-- 批量标记OpenLB没有返回记录的PMID。 -->
     <update id="markEnrichmentEmpty">
         UPDATE genbase_publication
         SET openlb_status='EMPTY',openlb_attempt_count=openlb_attempt_count+1,openlb_last_error=NULL,
@@ -142,6 +152,7 @@
         WHERE paper_id IN <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </update>
 
+    <!-- 批量记录不同错误；达到上限后FAILED，否则回到PENDING。 -->
     <update id="markEnrichmentFailedOrPending">
         UPDATE genbase_publication SET
         openlb_status=CASE WHEN openlb_attempt_count+1&gt;=#{maxAttempts} THEN 'FAILED' ELSE 'PENDING' END,

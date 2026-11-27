@@ -17,6 +17,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 public class ToolController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final CatalogService service;
 
     /** 按内部主键查询工具详情及官方跳转地址。 */

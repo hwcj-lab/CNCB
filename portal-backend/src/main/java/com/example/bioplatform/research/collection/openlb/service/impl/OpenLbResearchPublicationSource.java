@@ -15,6 +15,9 @@ import java.util.Objects;
 @Component
 @RequiredArgsConstructor
 public class OpenLbResearchPublicationSource implements ResearchPublicationSource {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchSnapshotMapper mapper;
 
     /**

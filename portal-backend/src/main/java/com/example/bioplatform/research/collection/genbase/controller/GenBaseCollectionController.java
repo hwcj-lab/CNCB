@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @Tag(name = "GenBase文献采集", description = "分页读取GenBase支持文章接口，支持断点续采和批量入库")
 public class GenBaseCollectionController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final GenBaseCollectionService service;
 
     /**

@@ -27,6 +27,12 @@ public class StableSourceRelationIdentifiers implements RelationIdentifierResolv
         return 20;
     }
 
+    /**
+     * 把原始标识解析成规范的类型与值，或建立当前上下文的身份对应关系。
+     * @param database 本次处理的数据库来源编码
+     * @param ids 待检索主键集合
+     * @return 按上述规则计算或读取的Identifier结果
+     */
     public Identifier resolve(String database, Map<String, String> ids) {
         if (ids.containsKey("pmid") && ids.get("pmid").matches("[1-9][0-9]+"))
             return new Identifier("PMID", ids.get("pmid"));

@@ -8,6 +8,12 @@ import lombok.Data;
  */
 @Data
 public class ResearchFundDictionaryEntry {
+    /**
+     * grantId：资助项目编号，用于查询本地基金名称字典。
+     */
     private String grantId;
+    /**
+     * fullName：本地字典中的规范英文全称。
+     */
     private String fullName;
 }

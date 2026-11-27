@@ -18,8 +18,17 @@ import java.util.function.Consumer;
  */
 @Component
 public class GsaMetadataClient {
+    /**
+     * delegate：被包装的原始来源适配器。
+     */
     private final PublicationMetadataEnricher delegate;
 
+    /**
+     * 构造GsaMetadataClient，注入本组件所需依赖并建立初始状态。
+     * @param http 共享HTTP传输组件或HTTP客户端
+     * @param json JSON解析与序列化组件
+     * @param projects BioProject元数据访问组件或项目结果集合
+     */
     public GsaMetadataClient(CollectionHttpTransport http, ObjectMapper json, BioProjectRelatedResourceResolver projects) {
         delegate = new PublicationMetadataEnricher(http, json, projects);
     }

@@ -19,8 +19,17 @@ import java.util.function.Consumer;
  */
 @RequiredArgsConstructor
 public class PublicationMetadataEnricher {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final CollectionHttpTransport http;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * projects：BioProject元数据访问组件或项目结果集合。
+     */
     private final BioProjectRelatedResourceResolver projects;
 
     /**
@@ -106,6 +115,11 @@ public class PublicationMetadataEnricher {
         return out;
     }
 
+    /**
+     * 收集当前记录的原始机构文本，保留来源所提供的信息。
+     * @param authors 已解析的作者信息集合
+     * @return 按上述规则计算或读取的String结果
+     */
     private String affiliations(String authors) throws Exception {
         if (blank(authors)) return null;
         JsonNode list = json.readTree(authors);
@@ -117,24 +131,52 @@ public class PublicationMetadataEnricher {
         return String.join("; ", values);
     }
 
+    /**
+     * 生成本次调用需要的空JSON数组，避免用null代替约定的集合结构。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private boolean emptyArray(String value) throws Exception {
         if (blank(value)) return true;
         JsonNode node = json.readTree(value);
         return node == null || node.isNull() || node.isArray() && node.isEmpty();
     }
 
+    /**
+     * 优先选择有实际内容的数组，空的新结果不能覆盖旧的有效数组。
+     * @param newer 本次更新取得的内容
+     * @param old 此前已有的数据
+     * @return 按上述规则计算或读取的String结果
+     */
     private String preferArray(String newer, String old) {
         return "[]".equals(newer) ? old : newer;
     }
 
+    /**
+     * 在新旧候选值间选择有效内容，保留原有可用信息。
+     * @param newer 本次更新取得的内容
+     * @param old 此前已有的数据
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String prefer(String newer, String old) {
         return blank(newer) ? old : newer;
     }
 
+    /**
+     * 判断文本是否为空或仅有空白，避免空数据覆盖原有有效内容。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean blank(String value) {
         return value == null || value.isBlank();
     }
 
+    /**
+     * 将输入载荷转换为数组或空数组，保持输出结构稳定。
+     * @param node 当前JSON、XML或队列节点
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String array(JsonNode node, String key) {
         return node.path(key).isArray() ? node.path(key).toString() : "[]";
     }

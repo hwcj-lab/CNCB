@@ -19,10 +19,24 @@ import java.util.Map;
  */
 @Component
 public class RelatedResourceHttpClient {
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    /**
+     * cache：当前组件的响应缓存或解析缓存。
+     */
     private final Map<String, Cached> cache = new LinkedHashMap<>(256, .75f, true);
+    /**
+     * nextRequest：下次允许发出上游请求的时间边界。
+     */
     private long nextRequest;
 
+    /**
+     * 带过期或容量信息的资源响应缓存项。
+     * @param body 已经成功取得的资源响应正文
+     * @param time 增量游标的更新时间
+     */
     private record Cached(String body, long time) {
     }
 

@@ -21,8 +21,17 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceResolver {
+    /**
+     * PROFILE_PATH：匹配官方资源详情URL中数字ID的路径规则。
+     */
     private static final Pattern PROFILE_PATH = Pattern.compile("^/databasecommons/database/id/(\\d+)/?$");
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * pages：读取资源网页或接口正文的客户端。
+     */
     private final RelationPageClient pages;
 
     /**
@@ -118,6 +127,11 @@ public class DatabaseCommonsRelatedResourceResolver implements RelatedResourceRe
         return id;
     }
 
+    /**
+     * 规范化数字资源ID并去掉前导零；无效编号返回空而不猜测其他资源。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private String normalizeId(String value) {
         if (value == null || !value.matches("[0-9]+")) return null;
         BigInteger id = new BigInteger(value);

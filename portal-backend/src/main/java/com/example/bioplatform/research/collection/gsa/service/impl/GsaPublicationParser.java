@@ -14,12 +14,27 @@ import java.util.regex.Pattern;
  * GSA支持文章行解析：保留页面全部支持文章，包括HRA/OMIX，不按CRA过滤。
  */
 public final class GsaPublicationParser {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private GsaPublicationParser() {
     }
 
+    /**
+     * RESOURCE：无文献资源类型标记。
+     */
     private static final Pattern RESOURCE = Pattern.compile("(?i)\\b(?:CRA|HRA|OMIX)[0-9]+\\b");
+    /**
+     * PROJECT：项目编号匹配规则，或对应资源类型枚举值。
+     */
     private static final Pattern PROJECT = Pattern.compile("(?i)\\bPRJ(?:CA|NA|EB|DA)[A-Z0-9]+\\b");
 
+    /**
+     * 将本类约定的原始输入转换成规范结构；不以字段缺失为由猜造PMID或作者归属。
+     * @param row 本次处理的一条记录
+     * @param json JSON解析与序列化组件
+     * @return 按上述规则计算或读取的GsaPublicationSeed结果
+     */
     public static GsaPublicationSeed parse(JsonNode row, ObjectMapper json) {
         GsaPublicationSeed seed = new GsaPublicationSeed();
         String pmid = text(row, "pubmedId");
@@ -57,6 +72,12 @@ public final class GsaPublicationParser {
         return seed;
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param row 本次处理的一条记录
+     * @param field 要读取或匹配的字段名
+     * @return 按上述规则计算或读取的String结果
+     */
     public static String text(JsonNode row, String field) {
         JsonNode n = row.get(field);
         String v = n == null || n.isNull() ? "" : n.asText("").trim();
@@ -70,10 +91,21 @@ public final class GsaPublicationParser {
         return doi.trim().replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/+", "").toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 去除HTML标记并整理空白，得到可保存或比较的正文文本。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String plain(String value) {
         return value.replaceAll("<[^>]+>", " ").replace("&amp;", "&").replace("&nbsp;", " ").replaceAll("\\s+", " ").trim();
     }
 
+    /**
+     * 按指定正则提取原始字段中的业务标识，不通过任意数字猜测对象身份。
+     * @param p 当前记录、文件或文献对象
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的List<String>结果
+     */
     private static List<String> matches(Pattern p, String value) {
         Set<String> result = new LinkedHashSet<>();
         Matcher m = p.matcher(plain(value));

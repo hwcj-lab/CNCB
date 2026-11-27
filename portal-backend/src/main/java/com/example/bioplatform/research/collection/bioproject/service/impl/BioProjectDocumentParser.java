@@ -14,11 +14,26 @@ import java.util.regex.Pattern;
  * 已验证公开JSON接口优先；缺少PMID时读项目出版信息表补充，绝不遍历其他资源的任意链接。
  */
 public final class BioProjectDocumentParser {
+    /**
+     * 项目正文读取回调，便于替换网络实现或在测试中提供固定响应。
+     */
     @FunctionalInterface
     public interface Fetcher {
+        /**
+         * 读取指定地址的上游正文；网络、状态码及解析相关异常由调用方处理。
+         * @param url 当前请求或资源的访问地址
+         * @return 按上述规则计算或读取的String结果
+         */
         String get(String url) throws Exception;
     }
 
+    /**
+     * 优先读取项目公开接口，必要时解析对应项目详情页；不遍历任意外部资源。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param json JSON解析与序列化组件
+     * @param fetch 读取资源正文或项目详情的回调
+     * @return 按上述规则计算或读取的JsonNode结果
+     */
     public static JsonNode fetch(String code, ObjectMapper json, Fetcher fetch) throws Exception {
         if (!code.matches("PRJ(?:CA|NA|EB|DA)[A-Z0-9]+")) throw new IllegalArgumentException("无效项目编号");
         ObjectNode project = null;
@@ -77,6 +92,12 @@ public final class BioProjectDocumentParser {
         return project;
     }
 
+    /**
+     * 从官方项目详情HTML提取本项目的出版、机构和资助信息。
+     * @param html 官方资源页面HTML正文
+     * @param json JSON解析与序列化组件
+     * @return 按上述规则计算或读取的ObjectNode结果
+     */
     public static ObjectNode html(String html, ObjectMapper json) {
         ObjectNode root = json.createObjectNode();
         ArrayNode papers = root.putArray("listPublication"), grants = root.putArray("listGrants");
@@ -108,6 +129,12 @@ public final class BioProjectDocumentParser {
         return root;
     }
 
+    /**
+     * 提取页面中的目标表格或将受支持维度映射成白名单表名，按当前类职责处理。
+     * @param html 官方资源页面HTML正文
+     * @param marker 用于定位正文区域的标记
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String table(String html, String marker) {
         int at = html.indexOf(marker);
         if (at < 0) return null;
@@ -115,6 +142,11 @@ public final class BioProjectDocumentParser {
         return start < 0 || end < 0 ? null : html.substring(start, end + 8);
     }
 
+    /**
+     * 把目标HTML表格分解为可逐行解析的记录。
+     * @param html 官方资源页面HTML正文
+     * @return 按上述规则计算或读取的List<List<String>>结果
+     */
     private static List<List<String>> rows(String html) {
         List<List<String>> result = new ArrayList<>();
         Matcher rows = Pattern.compile("(?is)<tr\\b[^>]*>(.*?)</tr>").matcher(html);
@@ -127,6 +159,11 @@ public final class BioProjectDocumentParser {
         return result;
     }
 
+    /**
+     * 去除HTML标记并整理空白，得到可保存或比较的正文文本。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String plain(String value) {
         return value.replaceAll("(?is)<[^>]+>", " ").replace("&amp;", "&").replace("&nbsp;", " ").replace("&#39;", "'").replace("&quot;", "\"").replaceAll("\\s+", " ").trim();
     }

@@ -9,6 +9,9 @@ import lombok.Data;
  */
 @Data
 public class ResearchSnapshotBuildRequest {
+    /**
+     * name：当前对象或资源的展示名称。
+     */
     @Size(max = 100, message = "快照名称不能超过100个字符")
     private String name;
 

@@ -17,6 +17,9 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class GenBaseResearchPublicationSource implements ResearchPublicationSource {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchSnapshotMapper mapper;
 
     /**

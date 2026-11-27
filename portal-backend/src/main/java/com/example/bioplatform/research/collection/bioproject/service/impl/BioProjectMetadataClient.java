@@ -23,8 +23,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 @RequiredArgsConstructor
 public class BioProjectMetadataClient {
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    /**
+     * cache：当前组件的响应缓存或解析缓存。
+     */
     private final Map<String, JsonNode> cache = new ConcurrentHashMap<>();
 
     /**
@@ -65,6 +74,11 @@ public class BioProjectMetadataClient {
                 .filter(value -> value.matches("[1-9][0-9]{5,11}")).distinct().toList();
     }
 
+    /**
+     * 请求已确认的项目接口并返回项目元数据，不按标题猜测文献身份。
+     * @param accession 资源在原始数据库中的登录号
+     * @return 按上述规则计算或读取的JsonNode结果
+     */
     private JsonNode request(String accession) {
         try {
             HttpRequest request = HttpRequest.newBuilder(URI.create("https://ngdc.cncb.ac.cn/gwh/api/public/bioProject/" + accession))
@@ -78,10 +92,20 @@ public class BioProjectMetadataClient {
         }
     }
 
+    /**
+     * 把有效数组条目追加到目标载荷，保留原始条目字段。
+     * @param target 接收合并或解析结果的目标对象
+     * @param values 待遍历或去重的值集合
+     */
     private void appendArray(ArrayNode target, JsonNode values) {
         if (values != null && values.isArray()) values.forEach(value -> target.add(value.deepCopy()));
     }
 
+    /**
+     * 整理当前业务字符串的空白、大小写或固定前缀，供后续匹配使用。
+     * @param accession 资源在原始数据库中的登录号
+     * @return 按上述规则计算或读取的String结果
+     */
     private String normalize(String accession) {
         if (accession == null) return null;
         String code = accession.trim().split("[;,\\s]+", 2)[0];

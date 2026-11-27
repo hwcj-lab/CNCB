@@ -17,8 +17,17 @@ import java.io.IOException;
 @Component
 @RequiredArgsConstructor
 public class OpenLbPublicationDetailsClient {
+    /**
+     * pages：读取资源网页或接口正文的客户端。
+     */
     private final RelationPageClient pages;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * endpoint：上游接口地址，由配置或默认值提供。
+     */
     @Value("${app.openlb.endpoint:https://ngdc.cncb.ac.cn/openlb/api/pmid?pmid=}")
     private String endpoint;
 

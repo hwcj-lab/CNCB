@@ -19,6 +19,9 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class GenBaseRelationSupport implements RelatedPublicationWriter, RelationIdentifierResolver {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final PublicationRelationCollectionMapper mapper;
 
     /**
@@ -35,10 +38,21 @@ public class GenBaseRelationSupport implements RelatedPublicationWriter, Relatio
         return 10;
     }
 
+    /**
+     * 把统一文献记录写入指定来源；来源结构差异由本实现处理，不在公共关联队列中硬编码。
+     * @param database 本次处理的数据库来源编码
+     * @param rows 本批待处理记录
+     */
     public void write(String database, List<RelatedPublicationWriteRow> rows) {
         mapper.upsertGenBaseRelated(rows);
     }
 
+    /**
+     * 把原始标识解析成规范的类型与值，或建立当前上下文的身份对应关系。
+     * @param database 本次处理的数据库来源编码
+     * @param ids 待检索主键集合
+     * @return 按上述规则计算或读取的Identifier结果
+     */
     public Identifier resolve(String database, Map<String, String> ids) {
         if (ids.containsKey("paperid") && ids.get("paperid").matches("[0-9]+"))
             return new Identifier("PAPER_ID", ids.get("paperid"));
@@ -48,6 +62,11 @@ public class GenBaseRelationSupport implements RelatedPublicationWriter, Relatio
         throw new BusinessException(HttpStatus.BAD_REQUEST, "GENBASE_IDENTIFIER_REQUIRED", "GenBase请填写paperId、pmid或doi之一");
     }
 
+    /**
+     * 去除DOI访问地址前缀并规范大小写，用于已有标识的匹配。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     public static String doi(String value) {
         return value.trim().replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/", "").toLowerCase(Locale.ROOT);
     }

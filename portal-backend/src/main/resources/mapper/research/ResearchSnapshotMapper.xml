@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.statistics.mapper.ResearchSnapshotMapper">
+    <!-- OpenLB适配器使用的游标分页读取；新增来源应由自己的适配器提供对应分页SQL。 -->
     <select id="selectOpenLbRecordPage"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id, 'OPENLB' source_code, CONCAT('PMID:',pmid) source_record_key, source_url,pmid,doi,title,
@@ -10,6 +11,7 @@
         WHERE id&gt;#{afterId} AND pmid IS NOT NULL AND pmid&lt;&gt;'' AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY id LIMIT #{pageSize}
     </select>
+    <!-- GenBase适配器使用的游标分页读取；新增来源应由自己的适配器提供对应分页SQL。 -->
     <select id="selectGenBaseRecordPage"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,'GENBASE' source_code,
@@ -23,23 +25,28 @@
         WHERE id&gt;#{afterId} AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY id LIMIT #{pageSize}
     </select>
+    <!-- 查询OpenLB来源文献总量，用于全量整合进度估算。 -->
     <select id="countOpenLbSourceRecords" resultType="long">
         SELECT COUNT(*) FROM openlb_publication
         WHERE pmid IS NOT NULL AND pmid&lt;&gt;'' AND (is_primary=1 OR #{includeRelated}=TRUE)
     </select>
+    <!-- 查询GenBase来源文献总量，用于全量整合进度估算。 -->
     <select id="countGenBaseSourceRecords" resultType="long">
         SELECT COUNT(*) FROM genbase_publication WHERE is_primary=1 OR #{includeRelated}=TRUE
     </select>
+    <!-- 查询OpenLB实际年份，避免为不存在的年份创建维度。 -->
     <select id="selectOpenLbYears" resultType="int">
         SELECT DISTINCT pub_year FROM openlb_publication
         WHERE pub_year IS NOT NULL AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY pub_year
     </select>
+    <!-- 查询GenBase实际年份，避免为不存在的年份创建维度。 -->
     <select id="selectGenBaseYears" resultType="int">
         SELECT DISTINCT publish_year FROM genbase_publication
         WHERE publish_year IS NOT NULL AND (is_primary=1 OR #{includeRelated}=TRUE)
         ORDER BY publish_year
     </select>
+    <!-- 按整合表主键游标分页读取快照输入，避免将全量文献一次装入堆内存。 -->
     <select id="selectIntegratedRecordPage"
             resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
         SELECT
@@ -51,6 +58,7 @@
         AND record_kind='PUBLICATION'
         ORDER BY id LIMIT #{pageSize}
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="selectIntegratedRecordPageForMode"
             resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
         SELECT
@@ -62,28 +70,33 @@
         AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
         ORDER BY id LIMIT #{pageSize}
     </select>
+    <!-- 统计全局整合表当前可统计记录数。 -->
     <select id="countIntegratedRecords" resultType="long">
         SELECT COUNT(*) FROM research_stat_publication
         WHERE is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
         AND record_kind='PUBLICATION'
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="countIntegratedRecordsForMode" resultType="long">
         SELECT COUNT(*) FROM research_stat_publication
         WHERE is_active=1 AND (has_primary_source=1 OR #{includeRelated}=TRUE)
         AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
     </select>
+    <!-- 读取全局整合表中实际存在的年份，用于精确预建总统计年度维度。 -->
     <select id="selectIntegratedYears" resultType="int">
         SELECT DISTINCT pub_year FROM research_stat_publication
         WHERE is_active=1 AND pub_year IS NOT NULL AND (has_primary_source=1 OR #{includeRelated}=TRUE)
         AND record_kind='PUBLICATION'
         ORDER BY pub_year
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="selectIntegratedYearsForMode" resultType="int">
         SELECT DISTINCT pub_year FROM research_stat_publication
         WHERE is_active=1 AND pub_year IS NOT NULL AND (has_primary_source=1 OR #{includeRelated}=TRUE)
         AND (#{includeResources}=TRUE OR record_kind='PUBLICATION')
         ORDER BY pub_year
     </select>
+    <!-- 预建少量年度、主题和数据库维度；年度/主题之后直接写正式穿透关系。 -->
     <insert id="insertDimensionSeeds">
         INSERT INTO research_stat_dimension
         (snapshot_id,scope_code,dimension_type,dimension_key,display_name,stat_year,publication_count)
@@ -93,6 +106,7 @@
             #{r.displayName},#{r.statYear},#{r.publicationCount})
         </foreach>
     </insert>
+    <!-- 批量读取年度、主题维度与ID，用于边扫记录边批量落穿透关系。 -->
     <select id="selectDimensionSeeds"
             resultType="com.example.bioplatform.research.collection.common.dto.SnapshotDimensionSeedRow">
         SELECT
@@ -100,6 +114,7 @@
         FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}
         AND dimension_type IN ('YEAR','TOPIC','DATABASE')
     </select>
+    <!-- 将年度、主题的文献唯一键直接写入正式穿透关系表。 -->
     <insert id="insertDimensionPublications">
         INSERT IGNORE INTO research_stat_dimension_publication(dimension_id,publication_key)
         VALUES
@@ -107,16 +122,19 @@
             (#{r.dimensionId},#{r.publicationKey})
         </foreach>
     </insert>
+    <!-- 由正式关系表回算年度、主题计数并删除没有关联文献的种子维度。 -->
     <update id="refreshSeedDimensionCounts">
         UPDATE research_stat_dimension d
         SET d.publication_count=(SELECT COUNT(*) FROM research_stat_dimension_publication p WHERE p.dimension_id=d.id)
         WHERE d.snapshot_id=#{snapshotId} AND d.dimension_type IN ('YEAR','TOPIC')
     </update>
+    <!-- 删除没有关联记录的年度/主题维度。 -->
     <delete id="deleteEmptySeedDimensions">
         DELETE FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}
         AND (dimension_type='YEAR' OR (dimension_type='TOPIC' AND scope_code&lt;&gt;'TOTAL'))
         AND publication_count=0
     </delete>
+    <!-- 将解析后的维度关联候选批量写入快照暂存表，主键负责跨批去重。 -->
     <insert id="insertDimensionCandidates">
         INSERT IGNORE INTO research_stat_dimension_candidate
         (snapshot_id,scope_code,dimension_type,dimension_hash,dimension_key,display_name,author_name,institution_name,stat_year,publication_key)
@@ -126,6 +144,7 @@
             #{r.authorName},#{r.institutionName},#{r.statYear},#{r.publicationKey})
         </foreach>
     </insert>
+    <!-- 数据库端聚合作者、机构、基金候选并只物化各范围Top 50。 -->
     <insert id="materializeDimensionsFromCandidates">
         INSERT INTO research_stat_dimension
         (snapshot_id, scope_code, dimension_type, dimension_key, display_name, author_name, institution_name, stat_year,
@@ -148,6 +167,7 @@
         WHERE (ranked.dimension_type IN ('AUTHOR','INSTITUTION','FUND') AND ranked.rank_no &lt;= 50)
         OR (ranked.dimension_type='TOPIC' AND ranked.scope_code&lt;&gt;'TOTAL' AND ranked.rank_no &lt;= 50)
     </insert>
+    <!-- 从候选表批量建立作者、机构、基金穿透关系；只关联已物化的维度。 -->
     <insert id="materializeDimensionPublications">
         INSERT IGNORE INTO research_stat_dimension_publication(dimension_id,publication_key)
         SELECT d.id,c.publication_key
@@ -157,20 +177,25 @@
         AND d.dimension_key=c.dimension_key AND d.stat_year=c.stat_year
         WHERE c.snapshot_id=#{snapshotId} AND c.dimension_type IN ('AUTHOR','INSTITUTION','FUND','TOPIC')
     </insert>
+    <!-- 清理某个快照的中间候选数据。 -->
     <delete id="deleteDimensionCandidates">DELETE FROM research_stat_dimension_candidate WHERE
         snapshot_id=#{snapshotId}
     </delete>
+    <!-- 清理快照失败或主动停止时已生成的维度，外键级联清理对应穿透键。 -->
     <delete id="deleteSnapshotDimensions">DELETE FROM research_stat_dimension WHERE snapshot_id=#{snapshotId}</delete>
+    <!-- 清理非构建中快照遗留的暂存行，处理进程异常退出。 -->
     <delete id="deleteOrphanDimensionCandidates">
         DELETE FROM research_stat_dimension_candidate
         WHERE snapshot_id NOT IN (
         SELECT id FROM research_stat_snapshot WHERE status='BUILDING'
         )
     </delete>
+    <!-- 启动恢复时清理失败/停止构建遗留维度，其穿透键由外键级联删除。 -->
     <delete id="deleteIncompleteSnapshotDimensions">
         DELETE FROM research_stat_dimension
         WHERE snapshot_id IN (SELECT id FROM research_stat_snapshot WHERE status&lt;&gt;'SUCCESS')
     </delete>
+    <!-- 根据OpenLB采集批次的PMID读取变化记录及其关系字段。 -->
     <select id="selectOpenLbRecordsByPmids"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,source_url,pmid,doi,title,pub_year,journal_title,
@@ -179,6 +204,7 @@
         FROM openlb_publication WHERE pmid IN
         <foreach collection="pmids" item="pmid" open="(" separator="," close=")">#{pmid}</foreach>
     </select>
+    <!-- 根据GenBase采集批次的paper_id读取变化记录及其关系字段。 -->
     <select id="selectGenBaseRecordsByPaperIds"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'GENBASE' source_code,
@@ -190,6 +216,7 @@
         FROM genbase_publication WHERE paper_id IN
         <foreach collection="paperIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
+    <!-- 根据PMID/DOI读取跨来源同一文献，合并补足字段。 -->
     <select id="selectOpenLbRecordsByIdentifiers"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'OPENLB' source_code,CONCAT('PMID:',pmid) source_record_key,source_url,pmid,doi,title,pub_year,journal_title,
@@ -205,6 +232,7 @@
             </if>
         </trim>
     </select>
+    <!-- 根据PMID/DOI读取跨来源同一文献，合并补足字段。 -->
     <select id="selectGenBaseRecordsByIdentifiers"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT 'GENBASE' source_code,
@@ -223,6 +251,7 @@
             </if>
         </trim>
     </select>
+    <!-- 读取已确认且启用的资源数据库到研究主题映射；快照构建时一次读取，避免逐文献查询。 -->
     <select id="selectConfirmedDatabaseTopics"
             resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
         SELECT LOWER(database_code) database_code, c.topic_code, c.topic_name
@@ -230,11 +259,13 @@
         JOIN research_topic_category c ON c.id=r.topic_id
         WHERE r.verification_status='CONFIRMED' AND c.status='ENABLED'
     </select>
+    <!-- 读取全部启用的主题标签，包含当前没有文献的标签。 -->
     <select id="selectEnabledTopicCategories"
             resultType="com.example.bioplatform.research.collection.common.dto.ResearchDatabaseTopicMapping">
         SELECT topic_code,topic_name FROM research_topic_category
         WHERE status='ENABLED' ORDER BY sort_order,topic_code
     </select>
+    <!-- 批量读取本页缺少agency的基金编号全称；无有效字典名称的基金不计入统计。 -->
     <select id="selectFundDictionaryByGrantIds"
             resultType="com.example.bioplatform.research.collection.common.dto.ResearchFundDictionaryEntry">
         SELECT grant_id,full_name
@@ -242,14 +273,17 @@
         WHERE status='ENABLED' AND grant_id IN
         <foreach collection="grantIds" item="grantId" open="(" separator="," close=")">#{grantId}</foreach>
     </select>
+    <!-- 开始全量重建时，将当前整合记录逻辑标记为非活动；历史快照引用仍保留。 -->
     <update id="deactivateAllIntegratedPublications">
         UPDATE research_stat_publication SET is_active=0 WHERE is_active=1 AND record_kind='PUBLICATION'
     </update>
 
+    <!-- 获取下一个人工统计版本号。 -->
     <select id="selectNextVersionNo" resultType="long">
         SELECT COALESCE(MAX(version_no), 0) + 1 FROM research_stat_snapshot
     </select>
 
+    <!-- 创建BUILDING状态快照并回填主键。 -->
     <insert id="insertSnapshot" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO research_stat_snapshot
         (version_no,snapshot_name,status,source_codes,source_count,include_related,include_resources,started_time)
@@ -257,9 +291,11 @@
         (#{versionNo},#{snapshotName},'BUILDING',#{sourceCodes},#{sourceCount},#{includeRelated},#{includeResources},#{startedTime})
     </insert>
 
+    <!-- 统计数据库中仍处于BUILDING状态的快照；只要大于0就禁止再次创建。 -->
     <select id="countBuildingSnapshots" resultType="long">
         SELECT COUNT(*) FROM research_stat_snapshot WHERE status='BUILDING'
     </select>
+    <!-- 读取任意一条正在构建的快照，兼容异常情况下存在多条BUILDING记录。 -->
     <select id="selectAnyBuildingSnapshot"
             resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
         SELECT * FROM research_stat_snapshot
@@ -268,6 +304,7 @@
         LIMIT 1
     </select>
 
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="selectIntegratedIdentityMatches"
             resultType="com.example.bioplatform.research.collection.common.dto.IntegratedPublicationRecord">
         SELECT id,publication_key,pmid,doi FROM research_stat_publication WHERE
@@ -280,11 +317,13 @@
             <foreach collection="dois" item="v" open="(" close=")" separator=",">#{v}</foreach>
         </if>
     </select>
+    <!-- 更新本方法指定的记录；涉及research_stat_publication表。 -->
     <update id="deactivateIntegratedKeys">
         UPDATE research_stat_publication SET is_active=0 WHERE is_active=1 AND record_kind='PUBLICATION' AND
         publication_key IN
         <foreach collection="keys" item="v" open="(" close=")" separator=",">#{v}</foreach>
     </update>
+    <!-- 批量新增或按内容摘要更新全局去重文献。 -->
     <insert id="insertPublications">
         INSERT INTO research_stat_publication
         (publication_key,content_hash,record_kind,resource_accession,resource_url,pmid,doi,title,pub_year,journal_title,source_codes,source_record_keys,
@@ -317,6 +356,7 @@
         content_hash=VALUES(content_hash)
     </insert>
 
+    <!-- 按全局文献业务键批量读取总统计穿透详情。 -->
     <select id="selectIntegratedPublicationDetails"
             resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotPublication">
         SELECT 'TOTAL' scope_code,publication_key,source_record_keys,pmid,doi,title,pub_year,journal_title,
@@ -332,6 +372,7 @@
         ORDER BY FIELD(publication_key,
         <foreach collection="publicationKeys" item="key" separator=",">#{key}</foreach>)
     </select>
+    <!-- 成功完成快照并写入覆盖率。 -->
     <update id="markSuccess">
         UPDATE research_stat_snapshot SET status='SUCCESS',
         publication_count=#{publicationCount},resource_count=#{resourceCount},
@@ -341,29 +382,36 @@
         WHERE id=#{id} AND status='BUILDING'
     </update>
 
+    <!-- 标记构建失败，旧的成功版本仍保持可用。 -->
     <update id="markFailed">
         UPDATE research_stat_snapshot SET status='FAILED', error_message=#{error}, completed_time=NOW()
         WHERE id=#{id} AND status='BUILDING'
     </update>
+    <!-- 将主动停止的快照标记为STOPPED。 -->
     <update id="markStopped">
         UPDATE research_stat_snapshot SET status='STOPPED', error_message=#{message}, completed_time=NOW()
         WHERE id=#{id} AND status='BUILDING'
     </update>
+    <!-- 应用重启时关闭上一次进程遗留的BUILDING版本。 -->
     <update id="failAbandonedBuilding">
         UPDATE research_stat_snapshot
         SET status='FAILED', error_message='应用重启：上一次构建未正常结束，请重新创建快照', completed_time=NOW()
         WHERE status='BUILDING'
     </update>
 
+    <!-- 查询指定快照。 -->
     <select id="selectDetail" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
         SELECT * FROM research_stat_snapshot WHERE id=#{id}
     </select>
+    <!-- 查询最近成功快照。 -->
     <select id="selectLatestSuccess" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
         SELECT * FROM research_stat_snapshot WHERE status='SUCCESS' ORDER BY version_no DESC LIMIT 1
     </select>
+    <!-- 查询历史快照。 -->
     <select id="selectVersions" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDetail">
         SELECT * FROM research_stat_snapshot ORDER BY version_no DESC LIMIT 100
     </select>
+    <!-- 按数量倒序读取指定统计维度。 -->
     <select id="selectDimensions" resultType="com.example.bioplatform.research.statistics.vo.ResearchSnapshotDimension">
         SELECT
         id,scope_code,dimension_type,dimension_key,display_name,author_name,institution_name,stat_year,publication_count
@@ -371,27 +419,33 @@
         WHERE snapshot_id=#{snapshotId} AND scope_code=#{scopeCode} AND dimension_type=#{type}
         ORDER BY publication_count DESC LIMIT #{limit}
     </select>
+    <!-- 统计指定维度关联的快照文献数量。 -->
     <select id="countDimensionPublications" resultType="long">
         SELECT COUNT(*) FROM research_stat_dimension_publication r
         JOIN research_stat_dimension d ON d.id=r.dimension_id
         WHERE d.snapshot_id=#{snapshotId} AND d.id=#{dimensionId}
     </select>
+    <!-- 查询穿透维度所属范围，决定后续按全局键还是来源键回查。 -->
     <select id="selectDimensionScope" resultType="string">
         SELECT scope_code FROM research_stat_dimension
         WHERE snapshot_id=#{snapshotId} AND id=#{dimensionId}
     </select>
+    <!-- 按唯一键稳定分页读取穿透关系；不关联全局数值主键。 -->
     <select id="selectDimensionPublicationKeys" resultType="string">
         SELECT r.publication_key FROM research_stat_dimension_publication r
         JOIN research_stat_dimension d ON d.id=r.dimension_id
         WHERE d.snapshot_id=#{snapshotId} AND d.id=#{dimensionId}
         ORDER BY r.publication_key LIMIT #{size} OFFSET #{offset}
     </select>
+    <!-- 删除快照；数据库外键只清理快照维度和穿透关系，全局文献继续保留。 -->
     <delete id="deleteSnapshot">
         DELETE FROM research_stat_snapshot WHERE id=#{id}
     </delete>
+    <!-- 修改快照展示名称。 -->
     <update id="updateSnapshotName">
         UPDATE research_stat_snapshot SET snapshot_name=#{name} WHERE id=#{id}
     </update>
+    <!-- 查询本方法指定的记录；涉及genbase_publication表。 -->
     <select id="selectGenBaseChangedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
 
         SELECT update_time source_updated_time, id source_row_id,'GENBASE' source_code,

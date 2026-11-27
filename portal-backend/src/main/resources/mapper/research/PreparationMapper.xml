@@ -2,20 +2,29 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.example.bioplatform.research.preparation.mapper.PreparationMapper">
+ <!-- 读取最近一轮整理任务，供运行状态判断、失败续传及中断恢复使用。 -->
  <select id="latestJob" resultType="com.example.bioplatform.research.preparation.model.PreparationJob">SELECT * FROM research_preparation_job ORDER BY id DESC LIMIT 1</select>
+ <!-- 返回最近成功发布的整理修订号；没有成功整理时为空。 -->
  <select id="readyRevision" resultType="java.lang.Long">SELECT MAX(id) FROM research_preparation_job WHERE status='SUCCESS'</select>
+ <!-- 返回成功整理任务的来源列表，用于检查首次整理覆盖是否齐全。 -->
  <select id="coveredSources" resultType="string">SELECT source_codes_json FROM research_preparation_job WHERE status='SUCCESS' AND id&gt;=COALESCE((SELECT MAX(id) FROM research_preparation_job WHERE status='SUCCESS' AND all_sources=1),0)</select>
+ <!-- 写入本方法指定的记录；涉及research_preparation_job表。 -->
  <insert id="createJob" useGeneratedKeys="true" keyProperty="id">
  INSERT INTO research_preparation_job(status,source_codes_json,source_index,after_id,batch_size,rows_scanned,rows_changed,rebuild,all_sources,scan_mode,started_time)
  VALUES('RUNNING',#{sourceCodesJson},0,0,#{batchSize},0,0,#{rebuild},#{allSources},#{scanMode},NOW())
  </insert>
+ <!-- 更新本方法指定的记录；涉及research_preparation_job表。 -->
  <update id="updateJob">UPDATE research_preparation_job SET status=#{status},source_index=#{sourceIndex},after_id=#{afterId},after_update_time=#{afterUpdateTime},rows_scanned=#{rowsScanned},rows_changed=#{rowsChanged},error_message=#{errorMessage},completed_time=#{completedTime} WHERE id=#{id}</update>
+ <!-- 按来源业务摘要或扫描行ID批量读取当前有效版本，兼容原始业务键发生变化的记录。 -->
  <select id="activeDocuments" resultType="com.example.bioplatform.research.preparation.model.PreparedDocument">
  SELECT * FROM research_prepared_document WHERE source_code=#{source} AND valid_until IS NULL AND (source_hash IN
  <foreach collection="hashes" item="h" open="(" close=")" separator=",">#{h}</foreach> OR source_row_id IN <foreach collection="ids" item="id" open="(" close=")" separator=",">#{id}</foreach>)
  </select>
+ <!-- 内容未变时仅更新本轮扫描标记和来源行ID，不重复写维度成员。 -->
  <update id="touch">UPDATE research_prepared_document SET seen_run=#{revision},source_row_id=#{sourceRowId} WHERE id=#{id}</update>
+ <!-- 关闭旧版本的有效区间；历史快照仍可读取失效边界之前的数据。 -->
  <update id="close">UPDATE research_prepared_document SET valid_until=#{revision} WHERE id=#{id} AND valid_until IS NULL</update>
+ <!-- 写入本方法指定的记录；涉及research_prepared_document表。 -->
  <insert id="insertDocument" useGeneratedKeys="true" keyProperty="id">
  INSERT INTO research_prepared_document(source_row_id,source_code,source_key,source_hash,document_key,pmid,doi,title,pub_year,journal_title,source_url,record_kind,resource_accession,gsa_accessions,bioproject_accession,primary_flag,content_hash,seen_run,valid_from)
  VALUES(#{sourceRowId},#{sourceCode},#{sourceKey},#{sourceHash},#{documentKey},#{pmid},#{doi},#{title},#{pubYear},#{journalTitle},#{sourceUrl},#{recordKind},#{resourceAccession},#{gsaAccessions},#{bioprojectAccession},#{primaryFlag},#{contentHash},#{seenRun},#{validFrom})
@@ -27,6 +36,7 @@
  </insert>
  <!-- 仅供全量扫描收尾：增量未读到的记录不能据此判定为删除。 -->
  <update id="expireMissing">UPDATE research_prepared_document SET valid_until=#{revision} WHERE source_code=#{source} AND valid_until IS NULL AND seen_run&lt;&gt;#{revision}</update>
+ <!-- 全来源扫描结束后关闭已停用来源的当前版本，不物理删除历史版本。 -->
  <update id="expireDisabled">UPDATE research_prepared_document SET valid_until=#{revision} WHERE valid_until IS NULL AND source_code NOT IN <foreach collection="sources" item="s" open="(" close=")" separator=",">#{s}</foreach></update>
  <!-- A DOI shared by conflicting PMIDs is deliberately not used as an identity bridge. -->
  <!-- 每个成功修订保存一套DOI桥接；COUNT DISTINCT忽略空PMID，多个冲突PMID不会强行合并。 -->
@@ -34,39 +44,54 @@
  SELECT #{revision},doi,CASE WHEN COUNT(DISTINCT pmid)=1 THEN MIN(pmid) ELSE NULL END
  FROM research_prepared_document WHERE valid_from&lt;=#{revision} AND (valid_until IS NULL OR valid_until&gt;#{revision}) AND doi IS NOT NULL AND record_kind='PUBLICATION' GROUP BY doi
  </insert>
+ <!-- 只删除指定未发布修订对应的维度成员；JOIN document用于限定修订，不删除document本身。 -->
  <delete id="deleteRevisionMembers">DELETE m FROM ${table} m JOIN research_prepared_document d ON d.id=m.document_id WHERE d.valid_from=#{revision}</delete>
+ <!-- 丢弃任务时删除该未发布修订新建的document记录；成员应先清理。 -->
  <delete id="deleteRevisionDocuments">DELETE FROM research_prepared_document WHERE valid_from=#{revision}</delete>
+ <!-- 丢弃未发布修订时恢复被该修订关闭的旧版本。 -->
  <update id="reopenRevision">UPDATE research_prepared_document SET valid_until=NULL WHERE valid_until=#{revision}</update>
+ <!-- 删除符合条件的目标记录；涉及research_prepared_identity表，关联表仅用于筛选，不表示同时删除。 -->
  <delete id="deleteIdentities">DELETE FROM research_prepared_identity WHERE revision=#{revision}</delete>
+ <!-- 检查成员是否缺少document，或成员来源/文献键与document不一致；正常结果应为0。 -->
  <select id="invalidMembers" resultType="long">
  SELECT COUNT(*) FROM ${table} m LEFT JOIN research_prepared_document d ON d.id=m.document_id
  WHERE d.id IS NULL OR m.source_code&lt;&gt;d.source_code OR m.document_key&lt;&gt;d.document_key
  OR NOT(m.pmid&lt;=&gt;d.pmid) OR NOT(m.doi&lt;=&gt;d.doi)
  </select>
 
+ <!-- 读取数据库当前时间，避免应用机时钟与来源update_time不一致影响增量扫描边界。 -->
  <select id="databaseTime" resultType="java.time.LocalDateTime">SELECT CURRENT_TIMESTAMP(6)</select>
+ <!-- 查询本方法指定的记录；涉及research_preparation_source_cursor表。 -->
  <select id="sourceCursor" resultType="com.example.bioplatform.research.preparation.model.PreparationSourceCursor">
  SELECT * FROM research_preparation_source_cursor WHERE job_id=#{jobId} AND source_code=#{source}
  </select>
+ <!-- 查询本方法指定的记录；涉及research_preparation_source_cursor表。 -->
  <select id="sourceCursors" resultType="com.example.bioplatform.research.preparation.model.PreparationSourceCursor">
  SELECT * FROM research_preparation_source_cursor WHERE job_id=#{jobId} ORDER BY source_code
  </select>
+ <!-- 仅从成功任务且来源已完成的扫描计划中选择增量基线，失败和停止任务不推进基线。 -->
  <select id="successfulCursor" resultType="com.example.bioplatform.research.preparation.model.PreparationSourceCursor">
  SELECT c.* FROM research_preparation_source_cursor c JOIN research_preparation_job j ON j.id=c.job_id
  WHERE c.source_code=#{source} AND c.status='COMPLETE' AND j.status='SUCCESS' ORDER BY c.job_id DESC LIMIT 1
  </select>
+ <!-- 写入本方法指定的记录；涉及research_preparation_source_cursor表。 -->
  <insert id="insertCursor">
  INSERT INTO research_preparation_source_cursor(job_id,source_code,scan_mode,status,from_time,until_time,after_update_time,after_id)
  VALUES(#{jobId},#{sourceCode},#{scanMode},#{status},#{fromTime},#{untilTime},#{afterUpdateTime},#{afterId})
  </insert>
+ <!-- 与本批文献成员写入放在同一事务提交，失败时数据和游标一起回滚。 -->
  <update id="updateCursor">UPDATE research_preparation_source_cursor SET status=#{status},after_update_time=#{afterUpdateTime},after_id=#{afterId}
  WHERE job_id=#{jobId} AND source_code=#{sourceCode}</update>
+ <!-- 删除符合条件的目标记录；涉及${table}表，关联表仅用于筛选，不表示同时删除。动态表标识只能来自服务端白名单。 -->
  <delete id="deleteDocumentMembers">DELETE FROM ${table} WHERE document_id=#{id}</delete>
+ <!-- 删除符合条件的目标记录；涉及research_prepared_document表，关联表仅用于筛选，不表示同时删除。 -->
  <delete id="deleteDocument">DELETE FROM research_prepared_document WHERE id=#{id}</delete>
+ <!-- 仅校验本修订涉及的成员与document是否一致，避免增量收尾扫描全部历史成员。 -->
  <select id="invalidRevisionMembers" resultType="long">
  SELECT COUNT(*) FROM research_prepared_document d JOIN ${table} m ON m.document_id=d.id
  WHERE d.valid_from=#{revision} AND (m.source_code&lt;&gt;d.source_code OR m.document_key&lt;&gt;d.document_key
  OR NOT(m.pmid&lt;=&gt;d.pmid) OR NOT(m.doi&lt;=&gt;d.doi))
  </select>
+ <!-- 统计当前有效记录中缺少来源扫描行ID的数量；存在此类旧数据时增量模式需先建立全量基线。 -->
  <select id="unmappedActive" resultType="long">SELECT COUNT(*) FROM research_prepared_document WHERE source_code=#{source} AND source_row_id IS NULL AND valid_until IS NULL</select>
 </mapper>

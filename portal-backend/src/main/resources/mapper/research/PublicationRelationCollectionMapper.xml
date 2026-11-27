@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.common.mapper.PublicationRelationCollectionMapper">
+    <!-- 创建人工触发的关联采集作业。 -->
     <insert id="createJob">
         INSERT INTO research_relation_crawl_job(database_code,root_identifier_type,root_identifier,
         refresh_publication,refresh_relations,status,max_publications,request_delay_ms,started_time)
         VALUES(#{databaseCode},#{identifierType},#{identifier},#{refreshPublication},#{refreshRelations},'RUNNING',
         #{maxPublications},#{requestDelayMs},NOW())
     </insert>
+    <!-- 获取当前数据库连接最后生成的自增ID。 -->
     <select id="lastInsertId" resultType="java.lang.Long">SELECT LAST_INSERT_ID()</select>
+    <!-- 根文献作为深度0节点写入持久化队列。 -->
     <insert id="insertRootQueue">
         INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
         VALUES(#{jobId},#{identifierType},#{identifier},0,'PENDING')
     </insert>
+    <!-- 按状态和主键顺序批量领取来源表中的根文献；查询利用relation_status调度索引。 -->
     <select id="selectPendingRoots"
             resultType="com.example.bioplatform.research.collection.common.dto.PendingRelationRoot">
         <choose>
@@ -55,6 +59,7 @@
             </otherwise>
         </choose>
     </select>
+    <!-- 将一批根文献一次性写入持久化队列，唯一键防止同一作业内重复。 -->
     <insert id="insertRootQueueBatch">
         INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
         VALUES
@@ -62,6 +67,7 @@
             (#{jobId},#{root.identifierType},#{root.identifierValue},0,'PENDING')
         </foreach>
     </insert>
+    <!-- 查询指定或最近作业状态。 -->
     <select id="selectJob"
             resultType="com.example.bioplatform.research.collection.common.vo.PublicationRelationJobStatus">
         SELECT FALSE process_running,FALSE stop_requested,j.id job_id,j.database_code,j.root_identifier_type,
@@ -75,13 +81,16 @@
             <otherwise>ORDER BY j.id DESC LIMIT 1</otherwise>
         </choose>
     </select>
+    <!-- 统计尚未完成的队列节点。 -->
     <select id="countPendingQueue" resultType="long">
         SELECT COUNT(*) FROM research_relation_crawl_queue WHERE job_id=#{jobId} AND status='PENDING'
     </select>
+    <!-- 将作业恢复为运行态。 -->
     <update id="resumeJob">
         UPDATE research_relation_crawl_job SET status='RUNNING',last_error=NULL,completed_time=NULL,update_time=NOW()
         WHERE id=#{jobId} AND status IN ('RUNNING','PAUSED','STOPPED','FAILED')
     </update>
+    <!-- 将异常退出遗留的RUNNING队列节点恢复为PENDING。 -->
     <update id="recoverRunningQueue">
         UPDATE research_relation_crawl_queue SET status='PENDING',last_error='应用中断后恢复',update_time=NOW()
         WHERE job_id=#{jobId} AND status='RUNNING'
@@ -91,9 +100,11 @@
         SELECT id,job_id,identifier_type,identifier_value,depth FROM research_relation_crawl_queue
         WHERE job_id=#{jobId} AND status='PENDING' AND depth=0 ORDER BY id LIMIT 1
     </select>
+    <!-- 将队列节点标记为RUNNING。 -->
     <update id="markQueueRunning">UPDATE research_relation_crawl_queue SET
         status='RUNNING',attempt_count=attempt_count+1,update_time=NOW() WHERE id=#{id} AND status='PENDING'
     </update>
+    <!-- 将队列节点标记为成功或无可下钻关系。 -->
     <update id="finishQueue">UPDATE research_relation_crawl_queue SET status=#{status},last_error=NULL,update_time=NOW()
         WHERE id=#{id}
     </update>
@@ -101,13 +112,16 @@
     <update id="skipQueue">UPDATE research_relation_crawl_queue SET status='SKIPPED',last_error=#{error},update_time=NOW()
         WHERE id=#{id}
     </update>
+    <!-- 标记队列节点失败，保留错误供人工检查。 -->
     <update id="failQueue">UPDATE research_relation_crawl_queue SET
         status='FAILED',last_error=#{error},update_time=NOW() WHERE id=#{id}
     </update>
+    <!-- 将新发现的文献加入本作业；唯一键同时承担visited集合。 -->
     <insert id="insertQueueIgnore">
         INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
         VALUES(#{jobId},#{identifierType},#{identifier},#{depth},'PENDING')
     </insert>
+    <!-- 按数据库和唯一值读取来源文献；GenBase支持paperId、pmid和doi。 -->
     <select id="selectSourceRecord"
             resultType="com.example.bioplatform.research.collection.common.dto.RelationSourceRecord">
         <choose>
@@ -142,6 +156,7 @@
             </otherwise>
         </choose>
     </select>
+    <!-- 将资源详情中发现的基金层级信息写回该数据库来源文献。 -->
     <update id="updateSourceGrants">
         <choose>
             <when test="databaseCode != 'GENBASE'">
@@ -153,6 +168,7 @@
             </otherwise>
         </choose>
     </update>
+    <!-- OpenLB来源表内批量upsert关联文献；同PMID已存在时只补充关联身份和变化字段。 -->
     <insert id="upsertOpenLbRelated">
         INSERT INTO
         ${databaseCode.toLowerCase()}_publication(pmid,pub_year,journal_title,title,abstract_text,affiliation_info,
@@ -182,6 +198,7 @@
         raw_payload=IF(NOT(source_hash&lt;=&gt;VALUES(source_hash)),VALUES(raw_payload),raw_payload),
         source_hash=VALUES(source_hash)
     </insert>
+    <!-- GenBase来源表内批量upsert关联文献；关联记录没有paperId也可入库。 -->
     <insert id="upsertGenBaseRelated">
         INSERT INTO genbase_publication(paper_id,pmid,doi,paper_title,publish_year,journal_name,source_url,raw_payload,
         openlb_status,abstract_text,affiliation_info,keyword_list,authors_json,mesh_headings_json,
@@ -215,6 +232,7 @@
         ON DUPLICATE KEY UPDATE active=1,evidence_url=COALESCE(VALUES(evidence_url),evidence_url),
         discovery_depth=LEAST(discovery_depth,VALUES(discovery_depth)),last_seen_run_id=VALUES(last_seen_run_id),last_seen_time=NOW()
     </insert>
+    <!-- 节点完整刷新成功后，将本轮没有再次发现的旧关系标记失效。 -->
     <update id="deactivateUnseenRelations">
         UPDATE research_publication_relation SET active=0,update_time=NOW()
         WHERE database_code=#{databaseCode} AND relation_type='RELATED_PUBLICATION'
@@ -222,6 +240,7 @@
         OR (right_identifier_type=#{identifierType} AND right_identifier=#{identifier}))
         AND (last_seen_run_id IS NULL OR last_seen_run_id&lt;&gt;#{jobId})
     </update>
+    <!-- 设置一篇来源文献的关联状态。 -->
     <update id="updatePublicationRelationStatus">
         <choose>
             <when test="databaseCode == 'BIOPROJECT'">
@@ -253,21 +272,25 @@
             </otherwise>
         </choose>
     </update>
+    <!-- 原子累计作业处理、新发现和关系数量。 -->
     <update id="incrementJob">
         UPDATE research_relation_crawl_job SET processed_count=processed_count+#{processed},
         discovered_count=discovered_count+#{discovered},relation_count=relation_count+#{relations},update_time=NOW()
         WHERE id=#{jobId}
     </update>
+    <!-- 写入作业最终或暂停状态。 -->
     <update id="finishJob">
         UPDATE research_relation_crawl_job SET status=#{status},last_error=#{error},
         completed_time=IF(#{status} IN ('SUCCESS','FAILED','STOPPED'),NOW(),NULL),update_time=NOW() WHERE id=#{jobId}
     </update>
+    <!-- 统计一篇文献的有效双向关联数量。 -->
     <select id="countRelations" resultType="long">
         SELECT COUNT(*) FROM research_publication_relation
         WHERE database_code=#{databaseCode} AND active=1 AND relation_type='RELATED_PUBLICATION'
         AND ((left_identifier_type=#{identifierType} AND left_identifier=#{identifier})
         OR (right_identifier_type=#{identifierType} AND right_identifier=#{identifier}))
     </select>
+    <!-- 分页读取关联另一端及其来源表文献摘要。 -->
     <select id="selectRelations"
             resultType="com.example.bioplatform.research.collection.common.vo.RelatedPublicationView">
         SELECT r.id relation_id,
@@ -312,24 +335,29 @@
         OR (r.right_identifier_type=#{identifierType} AND r.right_identifier=#{identifier}))
         ORDER BY r.discovery_depth,r.id LIMIT #{offset},#{size}
     </select>
+    <!-- GSA没有PMID时按DOI或稳定列表键回填资源基金。 -->
     <update id="updateGsaSourceGrants">UPDATE gsa_publication SET grants_json=#{grantsJson},update_time=NOW() WHERE
         (#{identifierType}='PMID' AND pmid=#{identifier}) OR (#{identifierType}='DOI' AND doi=#{identifier}) OR
         (#{identifierType}='SOURCE_KEY' AND gsa_record_key=#{identifier})
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_publication表。 -->
     <update id="updateBioProjectSourceGrants">UPDATE bioproject_publication SET
         grants_json=#{grantsJson},update_time=NOW() WHERE (#{identifierType}='PMID' AND pmid=#{identifier}) OR
         (#{identifierType}='DOI' AND doi=#{identifier}) OR (#{identifierType}='SOURCE_KEY' AND
         bioproject_record_key=#{identifier})
     </update>
 
+    <!-- 人工恢复失败作业时，重新领取其失败节点；成功节点不重复执行。 -->
     <update id="retryFailedQueue">
         UPDATE research_relation_crawl_queue SET status='PENDING',last_error=NULL,update_time=NOW()
         WHERE job_id=#{jobId} AND status='FAILED'
     </update>
+    <!-- Record a discovered leaf for visited/counting without scheduling another lookup. -->
     <insert id="insertTerminalQueue">
         INSERT IGNORE INTO research_relation_crawl_queue(job_id,identifier_type,identifier_value,depth,status)
         VALUES(#{jobId},#{identifierType},#{identifier},#{depth},'SUCCESS')
     </insert>
+    <!-- Old recursive queues are compatible with the new one-level policy on resume. -->
     <update id="finishDescendantQueue">
         UPDATE research_relation_crawl_queue SET status='SUCCESS',last_error=NULL,update_time=NOW()
         WHERE job_id=#{jobId} AND depth&gt;0 AND status IN ('PENDING','RUNNING','FAILED')

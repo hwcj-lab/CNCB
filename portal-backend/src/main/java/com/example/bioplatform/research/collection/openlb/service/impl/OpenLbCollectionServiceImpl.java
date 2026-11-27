@@ -46,24 +46,75 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 @RequiredArgsConstructor
 public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final OpenLbCollectionMapper mapper;
+    /**
+     * routing：OpenLB来源分流组件。
+     */
     private final OpenLbRoutingService routing;
+    /**
+     * publicationIntegration：旧全量文献整合服务，不等同于独立数据整理。
+     */
     private final ResearchPublicationIntegrationService publicationIntegration;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * transactions：事务执行组件。
+     */
     private final TransactionTemplate transactions;
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+    /**
+     * jobExecutor：采集作业调度执行器。
+     */
     private final ExecutorService jobExecutor = Executors.newSingleThreadExecutor(r -> daemon(r, "openlb-job"));
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     */
     private final AtomicBoolean running = new AtomicBoolean(false);
+    /**
+     * stopRequested：是否收到人工停止请求。
+     */
     private final AtomicBoolean stopRequested = new AtomicBoolean(false);
+    /**
+     * nextRequestAt：下次允许发出请求的时间戳。
+     */
     private final AtomicLong nextRequestAt = new AtomicLong(0);
+    /**
+     * currentDelayMs：当前实际请求间隔，单位毫秒。
+     */
     private final AtomicLong currentDelayMs = new AtomicLong(350);
+    /**
+     * consecutiveThrottles：连续遭遇限流或失败保护的次数。
+     */
     private final AtomicInteger consecutiveThrottles = new AtomicInteger(0);
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     */
     private volatile String message = "未启动";
+    /**
+     * startedAt：当前采集会话开始时间。
+     */
     private volatile LocalDateTime startedAt;
+    /**
+     * finishedAt：当前采集会话结束时间。
+     */
     private volatile LocalDateTime finishedAt;
 
+    /**
+     * csvPath：PMID任务导入CSV的服务端路径。
+     */
     @Value("${app.openlb.csv-path:docs/openlb_pmid.csv}")
     private String csvPath;
+    /**
+     * endpoint：上游接口地址，由配置或默认值提供。
+     */
     @Value("${app.openlb.endpoint:https://ngdc.cncb.ac.cn/openlb/api/pmid?pmid=}")
     private String endpoint;
 
@@ -391,20 +442,55 @@ public class OpenLbCollectionServiceImpl implements OpenLbCollectionService {
         return t;
     }
 
-    private enum Outcome {SUCCESS, EMPTY, FAILED}
+    /**
+     * OpenLB单条请求的处理结果枚举，用于批次持久化时区分成功、空结果和失败。
+     */
+    private enum Outcome {/**
+ * SUCCESS：正常取得或处理记录的结果状态。
+ */
+SUCCESS, /**
+  * EMPTY：正常返回但没有可用数据的结果状态。
+  */
+ EMPTY, /**
+  * FAILED：请求、解析或持久化未成功的结果状态。
+  */
+ FAILED}
 
     /**
      * 单个 PMID 的内存采集结果，在网络层与批量持久化层之间传递。
+     * @param pmid 已有PubMed标识；为空时不通过标题猜补
+     * @param outcome 本条请求结果类别，用于区分成功、正常空结果和请求失败
+     * @param record 待解析或写入的原始记录
+     * @param rawPayload 来源原始响应或单条原始记录，用于追溯和重解析
+     * @param error 本次处理产生的错误信息
      */
     private record CollectionResult(String pmid, Outcome outcome, JsonNode record, String rawPayload, String error) {
+        /**
+         * 构造正常取得文献或元数据的处理结果。
+         * @param pmid 已有PubMed标识；为空时不通过标题猜补
+         * @param record 待解析或写入的原始记录
+         * @param rawPayload 来源原始响应或单条原始记录，用于追溯和重解析
+         * @return 按上述规则计算或读取的CollectionResult结果
+         */
         static CollectionResult success(String pmid, JsonNode record, String rawPayload) {
             return new CollectionResult(pmid, Outcome.SUCCESS, record, rawPayload, null);
         }
 
+        /**
+         * 构造接口正常返回但没有可用记录的处理结果，与请求失败区别保存。
+         * @param pmid 已有PubMed标识；为空时不通过标题猜补
+         * @return 按上述规则计算或读取的CollectionResult结果
+         */
         static CollectionResult empty(String pmid) {
             return new CollectionResult(pmid, Outcome.EMPTY, null, null, null);
         }
 
+        /**
+         * 构造带错误原因的处理结果，供批次统一重试或落库。
+         * @param pmid 已有PubMed标识；为空时不通过标题猜补
+         * @param error 本次处理产生的错误信息
+         * @return 按上述规则计算或读取的CollectionResult结果
+         */
         static CollectionResult failed(String pmid, String error) {
             return new CollectionResult(pmid, Outcome.FAILED, null, null, error);
         }

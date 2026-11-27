@@ -24,8 +24,17 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CatalogServiceImpl implements CatalogService {
+    /**
+     * databases：数据库目录结果或数据库目录持久层。
+     */
     private final DatabaseMapper databases;
+    /**
+     * tools：在线工具结果或工具持久层。
+     */
     private final ToolMapper tools;
+    /**
+     * types：数据类型结果或类型持久层。
+     */
     private final DataTypeMapper types;
 
     /** 查询启用的数据类型，排序由数据库字段控制。 */

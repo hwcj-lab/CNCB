@@ -16,9 +16,19 @@ import java.io.StringReader;
  * OpenLB没有该PMID时解析NCBI efetch XML；每个作者保留自己的AffiliationInfo。
  */
 public final class PubMedXmlMetadataParser {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private PubMedXmlMetadataParser() {
     }
 
+    /**
+     * 解析PubMed XML中的匹配PMID，保留逐作者机构、基金和MeSH；正常无匹配返回null，错误响应或无效XML继续抛出。
+     * @param xml PubMed返回的原始XML正文
+     * @param pmid 已有PubMed标识；为空时不通过标题猜补
+     * @param json JSON解析与序列化组件
+     * @return 按上述规则计算或读取的ObjectNode结果
+     */
     public static ObjectNode parse(String xml, String pmid, ObjectMapper json) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
@@ -88,12 +98,24 @@ public final class PubMedXmlMetadataParser {
         return out;
     }
 
+    /**
+     * 取得第一个符合字段或节点约定的有效内容，没有匹配时返回空值。
+     * @param e 当前异常或XML元素，按声明类型解释
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的Element结果
+     */
     private static Element first(Element e, String name) {
         if (e == null) return null;
         NodeList list = e.getElementsByTagName(name);
         return list.getLength() == 0 ? null : (Element) list.item(0);
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param e 当前异常或XML元素，按声明类型解释
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String text(Element e, String name) {
         Element item = first(e, name);
         return item == null ? "" : item.getTextContent().trim();

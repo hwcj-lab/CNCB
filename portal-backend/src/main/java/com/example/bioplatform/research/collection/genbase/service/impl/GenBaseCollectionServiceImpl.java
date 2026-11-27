@@ -53,22 +53,70 @@ import java.util.regex.Pattern;
 @Service
 @RequiredArgsConstructor
 public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
+    /**
+     * YEAR：有效年份匹配规则或年度类型常量。
+     */
     private static final Pattern YEAR = Pattern.compile("^(\\d{4})");
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final GenBaseCollectionMapper mapper;
+    /**
+     * publicationIntegration：旧全量文献整合服务，不等同于独立数据整理。
+     */
     private final ResearchPublicationIntegrationService publicationIntegration;
+    /**
+     * metadata：来源元数据补全组件或规范化元数据结果。
+     */
     private final GenBaseMetadataClient metadata;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * transactions：事务执行组件。
+     */
     private final TransactionTemplate transactions;
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> daemon(r, "genbase-job"));
+    /**
+     * enrichmentExecutor：元数据补全执行器。
+     */
     private final ExecutorService enrichmentExecutor = Executors.newFixedThreadPool(4, r -> daemon(r, "genbase-openlb-worker"));
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     */
     private final AtomicBoolean running = new AtomicBoolean(false);
+    /**
+     * stopRequested：是否收到人工停止请求。
+     */
     private final AtomicBoolean stopRequested = new AtomicBoolean(false);
+    /**
+     * currentDelayMs：当前实际请求间隔，单位毫秒。
+     */
     private final AtomicLong currentDelayMs = new AtomicLong(500);
+    /**
+     * consecutiveThrottles：连续遭遇限流或失败保护的次数。
+     */
     private final AtomicInteger consecutiveThrottles = new AtomicInteger(0);
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     */
     private volatile String message = "未启动";
+    /**
+     * activeJobId：当前进程正在执行的关联采集作业ID。
+     */
     private volatile long activeJobId;
 
+    /**
+     * endpoint：上游接口地址，由配置或默认值提供。
+     */
     @Value("${app.genbase.endpoint:https://ngdc.cncb.ac.cn/genbase/statistics/getSupportPaperList}")
     private String endpoint;
 
@@ -350,6 +398,11 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         currentDelayMs.updateAndGet(value -> Math.max(baseDelay, value - 50));
     }
 
+    /**
+     * 把有效数字文本转为可空数值，格式不合法时不强行转换。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String numericOrNull(String value) {
         value = blankToNull(value);
         return value != null && value.matches("\\d+") ? value : null;
@@ -375,10 +428,20 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return value.replaceFirst("(?i)^https?://(?:dx\\.)?doi\\.org/", "").replaceFirst("(?i)^doi:\\s*", "").trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 把空白或无意义的缺失文本转换为真正的null。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String blankToNull(String value) {
         return value == null || value.isBlank() || "null".equalsIgnoreCase(value.trim()) ? null : value.trim();
     }
 
+    /**
+     * 从明确日期或年份文本提取有效年份，无法识别时保留缺失。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的Integer结果
+     */
     private static Integer year(String value) {
         if (value == null) return null;
         var m = YEAR.matcher(value);
@@ -387,42 +450,103 @@ public class GenBaseCollectionServiceImpl implements GenBaseCollectionService {
         return y >= 1500 && y <= 2200 ? y : null;
     }
 
+    /**
+     * 按配置等待下一次上游请求，人工停止或线程中断时不继续发起请求。
+     * @param millis 等待时长，单位毫秒
+     */
     private static void sleep(long millis) throws InterruptedException {
         Thread.sleep(millis);
     }
 
+    /**
+     * 按持久化字段的长度上限截断说明文本，防止错误记录本身写库失败。
+     * @param value 待校验、转换或合并的值
+     * @param max 允许的最大值或文本长度上限
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String abbreviate(String value, int max) {
         return value == null ? null : value.substring(0, Math.min(value.length(), max));
     }
 
+    /**
+     * 沿异常原因链定位根因，供作业状态记录实际失败说明。
+     * @param e 当前异常或XML元素，按声明类型解释
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String rootMessage(Throwable e) {
         while (e.getCause() != null) e = e.getCause();
         return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
     }
 
+    /**
+     * 创建后台守护线程，线程名称由本组件指定，不阻止应用正常退出。
+     * @param r 当前响应、记录或文献对象
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的Thread结果
+     */
     private static Thread daemon(Runnable r, String name) {
         var t = new Thread(r, name);
         t.setDaemon(true);
         return t;
     }
 
+    /**
+     * 上游分页请求的单页记录及分页元信息。
+     * @param recordsTotal 上游报告的记录总数
+     * @param data 响应或处理结果载荷，具体结构由声明类型决定
+     */
     private record Page(int recordsTotal, JsonNode data) {
     }
 
-    private enum EnrichmentOutcome {SUCCESS, FAILED}
+    /**
+     * 元数据补全结果类型，用于区分成功、空结果及请求失败。
+     */
+    private enum EnrichmentOutcome {/**
+ * SUCCESS：正常取得或处理记录的结果状态。
+ */
+SUCCESS, /**
+  * FAILED：请求、解析或持久化未成功的结果状态。
+  */
+ FAILED}
 
+    /**
+     * 单条来源记录的补全结果，供批次统一落库并更新任务状态。
+     * @param task 当前待处理的元数据任务
+     * @param outcome 本条请求结果类别，用于区分成功、正常空结果和请求失败
+     * @param row 本次处理的一条记录
+     * @param error 本次处理产生的错误信息
+     */
     private record EnrichmentResult(GenBasePmidTask task, EnrichmentOutcome outcome, GenBaseOpenLbWriteRow row,
                                     String error) {
+        /**
+         * 构造正常取得文献或元数据的处理结果。
+         * @param task 当前待处理的元数据任务
+         * @param row 本次处理的一条记录
+         * @return 按上述规则计算或读取的EnrichmentResult结果
+         */
         static EnrichmentResult success(GenBasePmidTask task, GenBaseOpenLbWriteRow row) {
             return new EnrichmentResult(task, EnrichmentOutcome.SUCCESS, row, null);
         }
 
+        /**
+         * 构造带错误原因的处理结果，供批次统一重试或落库。
+         * @param task 当前待处理的元数据任务
+         * @param error 本次处理产生的错误信息
+         * @return 按上述规则计算或读取的EnrichmentResult结果
+         */
         static EnrichmentResult failed(GenBasePmidTask task, String error) {
             return new EnrichmentResult(task, EnrichmentOutcome.FAILED, null, error);
         }
     }
 
+    /**
+     * 上游限流的显式异常，供采集流程增加等待或停止整批。
+     */
     private static class ThrottledException extends IOException {
+        /**
+         * 构造ThrottledException，注入本组件所需依赖并建立初始状态。
+         * @param message 响应说明、当前阶段说明或错误提示
+         */
         private ThrottledException(String message) {
             super(message);
         }

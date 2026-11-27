@@ -34,20 +34,54 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class PreparedSnapshotService implements ResearchSnapshotService {
+    /**
+     * preparation：独立数据整理服务。
+     */
     private final PreparationService preparation;
+    /**
+     * prepared：新整理模式的统计持久层。
+     */
     private final PreparedStatisticsMapper prepared;
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchSnapshotMapper mapper;
+    /**
+     * registry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry registry;
+    /**
+     * tx：事务执行模板，保证本批数据与进度一起提交或回滚。
+     */
     private final TransactionTemplate tx;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     * stop：停止请求标记或用于检查停止状态的回调。
+     */
     private final AtomicBoolean running = new AtomicBoolean(), stop = new AtomicBoolean();
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         var t = new Thread(r, "prepared-snapshot");
         t.setDaemon(true);
         return t;
     });
+    /**
+     * currentId：当前进程执行的快照ID。
+     */
     private volatile Long currentId;
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     */
     private volatile String message = "先采集，再整理，最后生成快照";
+    /**
+     * TYPES：本组件支持的维度或类型白名单。
+     */
     private static final List<String> TYPES = List.of("YEAR", "AUTHOR", "INSTITUTION", "FUND", "TOPIC", "DATABASE");
 
     /**
@@ -195,6 +229,10 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         prepared.insertDimension(id, row);
     }
 
+    /**
+     * 请求当前快照构建在检查点停止，避免发布仅生成一部分的统计结果。
+     * @return 按上述规则计算或读取的ResearchSnapshotStatus结果
+     */
     @Override
     public ResearchSnapshotStatus stopBuild() {
         if (running.get()) stop.set(true);
@@ -223,21 +261,38 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return new ResearchSnapshotStatus(running.get() || building != null, message, building != null ? building : currentId == null ? null : mapper.selectDetail(currentId), latest());
     }
 
+    /**
+     * 读取当前已注册并启用的来源编码及展示名称，前端不维护固定数据库列表。
+     * @return 按上述规则计算或读取的List<ResearchPublicationSourceOption>结果
+     */
     @Override
     public List<ResearchPublicationSourceOption> sourceOptions() {
         return registry.options();
     }
 
+    /**
+     * 读取可查询的历史快照版本列表，具体格式由当前统计实现限定。
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDetail>结果
+     */
     @Override
     public List<ResearchSnapshotDetail> versions() {
         return prepared.versions();
     }
 
+    /**
+     * 返回最近成功发布的快照；正在构建或失败的版本不作为可用最新结果。
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail latest() {
         return prepared.latestSuccess();
     }
 
+    /**
+     * 按标识读取当前资源或快照详情；不存在时由业务异常明确告知调用方。
+     * @param id 本对象或持久化记录的主键标识
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail detail(long id) {
         config(id);
@@ -246,6 +301,11 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return row;
     }
 
+    /**
+     * 读取最近成功快照的统计结果，没有可用版本时返回明确提示。
+     * @param limit 结果条数上限
+     * @return 按上述规则计算或读取的ResearchSnapshotResult结果
+     */
     @Override
     public ResearchSnapshotResult latestResult(int limit) {
         var latest = latest();
@@ -253,11 +313,24 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return result(latest.getId(), limit);
     }
 
+    /**
+     * 按指定快照读取总统计结果，并根据请求限制排名展示数量。
+     * @param id 本对象或持久化记录的主键标识
+     * @param limit 结果条数上限
+     * @return 按上述规则计算或读取的ResearchSnapshotResult结果
+     */
     @Override
     public ResearchSnapshotResult result(long id, int limit) {
         return scopedResult(id, "TOTAL", limit);
     }
 
+    /**
+     * 读取指定快照、指定数据库来源的分库统计；不将其他来源结果合并进该范围。
+     * @param id 本对象或持久化记录的主键标识
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param limit 结果条数上限
+     * @return 按上述规则计算或读取的ResearchSnapshotResult结果
+     */
     @Override
     public ResearchSnapshotResult databaseResult(long id, String code, int limit) {
         String scope = code.toUpperCase(Locale.ROOT);
@@ -302,18 +375,36 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return result;
     }
 
+    /**
+     * 返回当前接口范围内可用的数据库列表，关联采集和快照场景各自使用对应来源配置。
+     * @param id 本对象或持久化记录的主键标识
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDatabaseOption>结果
+     */
     @Override
     public List<ResearchSnapshotDatabaseOption> databases(long id) {
         detail(id);
         return mapper.selectDimensions(id, "TOTAL", "DATABASE", 1000).stream().map(d -> new ResearchSnapshotDatabaseOption(d.getDimensionKey(), d.getDisplayName(), d.getPublicationCount())).toList();
     }
 
+    /**
+     * 按快照冻结的主题映射查找该分类对应的数据库，保持历史分类范围稳定。
+     * @param id 本对象或持久化记录的主键标识
+     * @param topic 研究主题编码或主题维度结果
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDatabaseOption>结果
+     */
     @Override
     public List<ResearchSnapshotDatabaseOption> topicDatabases(long id, String topic) {
         var codes = topics(config(id)).entrySet().stream().filter(e -> e.getKey().split("\\|", 2)[0].equalsIgnoreCase(topic)).flatMap(e -> e.getValue().stream()).collect(Collectors.toSet());
         return databases(id).stream().filter(d -> codes.contains(d.code())).toList();
     }
 
+    /**
+     * 读取某类统计维度结果，维度类型与展示条数由当前接口校验。
+     * @param id 本对象或持久化记录的主键标识
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param limit 结果条数上限
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDimension>结果
+     */
     @Override
     public List<ResearchSnapshotDimension> dimensions(long id, String type, int limit) {
         String t = type.toUpperCase(Locale.ROOT);
@@ -346,6 +437,10 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return new ResearchSnapshotPublicationPage(count, p, n, items);
     }
 
+    /**
+     * 删除指定快照及本实现对应的配置或关系；不删除原始采集文献。
+     * @param id 本对象或持久化记录的主键标识
+     */
     @Override
     public void deleteSnapshot(long id) {
         var snapshot = detail(id);
@@ -356,6 +451,12 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         });
     }
 
+    /**
+     * 只修改快照展示名称，不改变统计结果或快照对应的数据范围。
+     * @param id 本对象或持久化记录的主键标识
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail renameSnapshot(long id, String name) {
         detail(id);
@@ -386,6 +487,11 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         return q;
     }
 
+    /**
+     * 读取本快照冻结的来源编码到显示名称映射，不使用后续配置覆盖历史名称。
+     * @param c 当前处理对象，具体类型见方法签名
+     * @return 按上述规则计算或读取的Map<String, String>结果
+     */
     private Map<String, String> names(PreparedSnapshotConfig c) {
         try {
             return json.readValue(c.getSourceNamesJson(), json.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, String.class));
@@ -394,6 +500,11 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 读取本快照冻结的总分类范围，保持历史分类归属稳定。
+     * @param c 当前处理对象，具体类型见方法签名
+     * @return 按上述规则计算或读取的Map<String, List<String>>结果
+     */
     private Map<String, List<String>> topics(PreparedSnapshotConfig c) {
         try {
             return json.readValue(c.getTopicScopesJson(), new com.fasterxml.jackson.core.type.TypeReference<LinkedHashMap<String, List<String>>>() {
@@ -403,6 +514,11 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 把结构化对象序列化成JSON，供配置冻结或稳定摘要使用。
+     * @param v 待处理的原始值
+     * @return 按上述规则计算或读取的String结果
+     */
     private String encode(Object v) {
         try {
             return json.writeValueAsString(v);
@@ -411,25 +527,51 @@ public class PreparedSnapshotService implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 整理当前业务字符串的空白、大小写或固定前缀，供后续匹配使用。
+     * @param s 待处理的字符串或当前对象
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String normalize(String s) {
         return s == null ? "" : s.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
     }
 
+    /**
+     * 将统计数量转换为接口规定的整数类型，超出范围时明确失败而不静默截断。
+     * @param n 长度或数量上限
+     * @return 按上述规则计算或读取的int结果
+     */
     private static int exact(long n) {
         return Math.toIntExact(n);
     }
 
+    /**
+     * 在批次或维度边界检查人工停止标记，避免发布不完整快照。
+     */
     private void checkStopped() {
         if (stop.get()) throw new Stopped();
     }
 
+    /**
+     * 快照人工停止时使用的内部控制流异常，不应解释为上游服务故障。
+     */
     private static class Stopped extends RuntimeException {
     }
 
+    /**
+     * 构造带稳定错误码的业务冲突异常，交由全局异常处理器统一返回。
+     * @param s 待处理的字符串或当前对象
+     * @return 按上述规则计算或读取的BusinessException结果
+     */
     private static BusinessException conflict(String s) {
         return new BusinessException(HttpStatus.CONFLICT, "SNAPSHOT_NOT_READY", s);
     }
 
+    /**
+     * 构造当前查询对象不存在的业务异常，区别于空列表和上游服务故障。
+     * @param s 待处理的字符串或当前对象
+     * @return 按上述规则计算或读取的BusinessException结果
+     */
     private static BusinessException missing(String s) {
         return new BusinessException(HttpStatus.NOT_FOUND, "SNAPSHOT_NOT_FOUND", s);
     }

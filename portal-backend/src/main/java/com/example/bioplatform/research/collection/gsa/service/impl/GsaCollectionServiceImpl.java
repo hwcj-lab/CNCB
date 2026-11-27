@@ -35,22 +35,60 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Service
 @RequiredArgsConstructor
 public class GsaCollectionServiceImpl implements GsaCollectionService {
+    /**
+     * resourceObservations：原库资源观察的规范化构造组件。
+     */
     private final NativeResourceObservations resourceObservations;
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final GsaCollectionMapper mapper;
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final CollectionHttpTransport http;
+    /**
+     * metadata：来源元数据补全组件或规范化元数据结果。
+     */
     private final GsaMetadataClient metadata;
+    /**
+     * integration：旧全量文献整合服务。
+     */
     private final ResearchPublicationIntegrationService integration;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * transactions：事务执行组件。
+     */
     private final TransactionTemplate transactions;
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     * stopped：是否已经停止或检查停止状态的回调。
+     */
     private final AtomicBoolean running = new AtomicBoolean(), stopped = new AtomicBoolean();
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "gsa-collector");
         t.setDaemon(true);
         return t;
     });
+    /**
+     * message：响应说明、当前阶段说明或错误提示。
+     * currentRecord：当前流式读取的原始记录。
+     */
     private volatile String message = "未启动", currentRecord = "";
+    /**
+     * endpoint：上游接口地址，由配置或默认值提供。
+     */
     @Value("${app.gsa.statistics-endpoint:https://ngdc.cncb.ac.cn/gsa/statistics/statistics.json}")
     private String endpoint;
+    /**
+     * cacheDirectory：本地接口快照或下载缓存目录。
+     */
     @Value("${app.gsa.cache-directory:F:/project/bio-portal-suite/docs/gsa-cache}")
     private String cacheDirectory;
 
@@ -120,6 +158,11 @@ public class GsaCollectionServiceImpl implements GsaCollectionService {
         return status();
     }
 
+    /**
+     * 执行本任务或请求前检查回调；停止和异常处理遵循当前实现的约定。
+     * @param jobId 所属持久化任务或作业ID
+     * @param config 本次来源或快照配置
+     */
     private void run(long jobId, GsaCollectionStartRequest config) {
         try {
             GsaCollectionJob job = mapper.latest();
@@ -264,6 +307,12 @@ public class GsaCollectionServiceImpl implements GsaCollectionService {
         }
     }
 
+    /**
+     * 按业务值合并两个集合并去重，保留各自互补信息。
+     * @param a 参与比较或合并的第一项
+     * @param b 参与比较或合并的第二项
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String union(String a, String b) {
         Set<String> set = new LinkedHashSet<>();
         for (String value : List.of(a == null ? "" : a, b == null ? "" : b))
@@ -271,15 +320,28 @@ public class GsaCollectionServiceImpl implements GsaCollectionService {
         return String.join(",", set);
     }
 
+    /**
+     * 按持久化字段的长度上限截断说明文本，防止错误记录本身写库失败。
+     * @param e 当前异常或XML元素，按声明类型解释
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String abbreviate(Exception e) {
         String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
         return m.length() > 1800 ? m.substring(0, 1800) : m;
     }
 
+    /**
+     * 构造带稳定错误码的业务冲突异常，交由全局异常处理器统一返回。
+     * @param m 当前成员或合并目标
+     * @return 按上述规则计算或读取的BusinessException结果
+     */
     private static BusinessException conflict(String m) {
         return new BusinessException(HttpStatus.CONFLICT, "GSA_JOB_RUNNING", m);
     }
 
+    /**
+     * 释放本轮缓存或网络响应等当前对象持有的资源，具体清理由本类职责决定。
+     */
     @PreDestroy
     void close() {
         stopped.set(true);

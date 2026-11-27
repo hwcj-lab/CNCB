@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.gsa.mapper.GsaCollectionMapper">
+ <!-- 查询本方法指定的记录；涉及gsa_publication表。 -->
  <select id="existing" resultType="com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask">
   SELECT id,gsa_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM gsa_publication WHERE
   <foreach collection="rows" item="r" separator=" OR ">(gsa_record_key=#{r.recordKey}
    <if test="r.pmid != null"> OR pmid=#{r.pmid}</if><if test="r.doi != null"> OR doi=#{r.doi}</if>)</foreach>
  </select>
+ <!-- 写入本方法指定的记录；涉及gsa_publication表。唯一键冲突按SQL合并已有字段。 -->
  <insert id="upsertSeeds">
  INSERT INTO gsa_publication(gsa_record_key,pmid,doi,title,pub_year,journal_title,source_url,grants_json,cncb_banks_json,
  raw_payload,gsa_raw_payload,gsa_source_hash,source_hash,gsa_accessions,bioproject_accession,is_primary,is_related,gsa_enrichment_status)
@@ -25,6 +27,7 @@
  gsa_raw_payload=CASE WHEN NOT(gsa_source_hash&lt;=&gt;VALUES(gsa_source_hash)) THEN VALUES(gsa_raw_payload) ELSE gsa_raw_payload END,
  gsa_source_hash=VALUES(gsa_source_hash)
  </insert>
+ <!-- 更新本方法指定的记录；涉及gsa_publication表。 -->
  <update id="updateMetadata">
  UPDATE gsa_publication SET
  relation_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN CASE WHEN #{r.sourceHash} IS NOT NULL AND NOT(source_hash&lt;=&gt;#{r.sourceHash}) THEN 'PENDING' ELSE relation_status END</foreach> ELSE relation_status END,
@@ -47,48 +50,63 @@
  gsa_enrichment_attempts=gsa_enrichment_attempts+1,gsa_metadata_checked_at=NOW()
  WHERE id IN <foreach collection="rows" item="r" open="(" close=")" separator=",">#{r.id}</foreach>
  </update>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="recover">
 UPDATE gsa_collection_job SET status='STOPPED',last_error='进程中断，等待继续' WHERE status='RUNNING'
     </update>
+    <!-- 查询本方法指定的记录；涉及gsa_collection_job表。 -->
     <select id="resumable" resultType="com.example.bioplatform.research.collection.gsa.vo.GsaCollectionJob">
 SELECT * FROM gsa_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
     </select>
+    <!-- 查询本方法指定的记录；涉及gsa_collection_job表。 -->
     <select id="latest" resultType="com.example.bioplatform.research.collection.gsa.vo.GsaCollectionJob">
 SELECT * FROM gsa_collection_job ORDER BY id DESC LIMIT 1
     </select>
+    <!-- 写入gsa_collection_job。 -->
     <insert id="create" useGeneratedKeys="true" keyProperty="id">
 INSERT INTO gsa_collection_job(status,phase,cache_file) VALUES('RUNNING','DOWNLOAD',#{cacheFile})
     </insert>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="resume">
 UPDATE gsa_collection_job SET status='RUNNING',last_error=NULL,completed_time=NULL WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="phase">
 UPDATE gsa_collection_job SET phase=#{phase} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="advance">
 UPDATE gsa_collection_job SET next_index=#{next},rows_imported=rows_imported+#{size} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="progress">
 UPDATE gsa_collection_job SET metadata_processed=metadata_processed+#{size} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_collection_job表。 -->
     <update id="finish">
 UPDATE gsa_collection_job SET status=#{status},last_error=#{error},completed_time=NOW() WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_publication表。 -->
     <update id="retryFailed">
 UPDATE gsa_publication SET gsa_enrichment_status='PENDING',gsa_enrichment_error=NULL WHERE gsa_enrichment_status='FAILED'
     </update>
+    <!-- 更新本方法指定的记录；涉及gsa_publication表。 -->
     <update id="resetEnrichment">
 UPDATE gsa_publication SET gsa_enrichment_status='PENDING',gsa_enrichment_error=NULL WHERE is_primary=1
     </update>
+    <!-- 查询本方法指定的记录；涉及gsa_publication表。 -->
     <select id="counts" resultType="map">
 SELECT gsa_enrichment_status status,COUNT(*) total FROM gsa_publication WHERE is_primary=1 GROUP BY gsa_enrichment_status
     </select>
+    <!-- 查询本方法指定的记录；涉及gsa_publication表。 -->
     <select id="pending" resultType="com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask">
 SELECT id,gsa_record_key record_key,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,cncb_banks_json,mesh_headings_json,keyword_list,abstract_text,bioproject_accession FROM gsa_publication WHERE is_primary=1 AND gsa_enrichment_status='PENDING' ORDER BY id LIMIT #{limit}
     </select>
+    <!-- 补全批次提交前锁定并读取最新JSON，避免合并时覆盖关联采集刚补充的基金。 -->
     <select id="lockMetadata" resultType="com.example.bioplatform.research.collection.gsa.dto.GsaEnrichmentTask">
 SELECT id,gsa_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM gsa_publication WHERE id IN <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}</foreach> FOR UPDATE
     </select>
+    <!-- 更新本方法指定的记录；涉及gsa_publication表。 -->
     <update id="markRelated">
 UPDATE gsa_publication SET is_related=1,grants_json=#{grants},cncb_banks_json=#{banks} WHERE id=#{id}
     </update>

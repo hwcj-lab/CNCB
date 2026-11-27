@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.bioproject.mapper.BioProjectCollectionMapper">
+    <!-- 查询本方法指定的记录；涉及bioproject_publication表。 -->
     <select id="existing"
             resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
         SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM
@@ -10,6 +11,7 @@
             <if test="r.doi != null">OR doi=#{r.doi}</if>)
         </foreach>
     </select>
+    <!-- 写入本方法指定的记录；涉及bioproject_publication表。唯一键冲突按SQL合并已有字段。 -->
     <insert id="upsertSeeds">
         INSERT INTO
         bioproject_publication(bioproject_record_key,pmid,doi,title,pub_year,journal_title,source_url,grants_json,cncb_banks_json,
@@ -35,6 +37,7 @@
         VALUES(bioproject_raw_payload) ELSE bioproject_raw_payload END,
         bioproject_source_hash=VALUES(bioproject_source_hash)
     </insert>
+    <!-- 更新本方法指定的记录；涉及bioproject_publication表。 -->
     <update id="updateMetadata">
         UPDATE bioproject_publication SET
         relation_status=CASE id <foreach collection="rows" item="r">WHEN #{r.id} THEN CASE WHEN #{r.sourceHash} IS NOT
@@ -78,46 +81,59 @@
         WHERE id IN
         <foreach collection="rows" item="r" open="(" close=")" separator=",">#{r.id}</foreach>
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="recover">
         UPDATE bioproject_collection_job SET status='STOPPED',last_error='进程中断，等待继续' WHERE status='RUNNING'
     </update>
+    <!-- 查询本方法指定的记录；涉及bioproject_collection_job表。 -->
     <select id="resumable"
             resultType="com.example.bioplatform.research.collection.bioproject.vo.BioProjectCollectionJob">
         SELECT * FROM bioproject_collection_job WHERE status IN ('STOPPED','FAILED') ORDER BY id DESC LIMIT 1
     </select>
+    <!-- 查询本方法指定的记录；涉及bioproject_collection_job表。 -->
     <select id="latest" resultType="com.example.bioplatform.research.collection.bioproject.vo.BioProjectCollectionJob">
         SELECT * FROM bioproject_collection_job ORDER BY id DESC LIMIT 1
     </select>
+    <!-- 写入bioproject_collection_job。 -->
     <insert id="create" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO bioproject_collection_job(status,phase,cache_file) VALUES('RUNNING','DOWNLOAD',#{cacheFile})
     </insert>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="resume">
         UPDATE bioproject_collection_job SET status='RUNNING',last_error=NULL,completed_time=NULL WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="phase">
         UPDATE bioproject_collection_job SET phase=#{phase} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="advance">
         UPDATE bioproject_collection_job SET next_index=#{next},rows_imported=rows_imported+#{size} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="progress">
         UPDATE bioproject_collection_job SET metadata_processed=metadata_processed+#{size} WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_collection_job表。 -->
     <update id="finish">
         UPDATE bioproject_collection_job SET status=#{status},last_error=#{error},completed_time=NOW() WHERE id=#{id}
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_publication表。 -->
     <update id="retryFailed">
         UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE
         bioproject_enrichment_status='FAILED'
     </update>
+    <!-- 更新本方法指定的记录；涉及bioproject_publication表。 -->
     <update id="resetEnrichment">
         UPDATE bioproject_publication SET bioproject_enrichment_status='PENDING',bioproject_enrichment_error=NULL WHERE
         is_primary=1
     </update>
+    <!-- 查询本方法指定的记录；涉及bioproject_publication表。 -->
     <select id="counts" resultType="map">
         SELECT bioproject_enrichment_status status,COUNT(*) total FROM bioproject_publication WHERE is_primary=1 GROUP
         BY bioproject_enrichment_status
     </select>
+    <!-- 查询本方法指定的记录；涉及bioproject_publication表。 -->
     <select id="pending"
             resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
         SELECT id,bioproject_record_key
@@ -125,12 +141,14 @@
         FROM bioproject_publication WHERE is_primary=1 AND bioproject_enrichment_status='PENDING' ORDER BY id LIMIT
         #{limit}
     </select>
+    <!-- 补全批次提交前锁定并读取最新JSON，避免合并时覆盖关联采集刚补充的基金。 -->
     <select id="lockMetadata"
             resultType="com.example.bioplatform.research.collection.bioproject.dto.BioProjectEnrichmentTask">
         SELECT id,bioproject_record_key record_key,pmid,doi,grants_json,authors_json,cncb_banks_json FROM
         bioproject_publication WHERE id IN <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}
     </foreach> FOR UPDATE
     </select>
+    <!-- 更新本方法指定的记录；涉及bioproject_publication表。 -->
     <update id="markRelated">
         UPDATE bioproject_publication SET is_related=1,grants_json=#{grants},cncb_banks_json=#{banks} WHERE id=#{id}
     </update>

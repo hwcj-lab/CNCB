@@ -14,13 +14,40 @@ import java.util.*;
  */
 @Component
 public class RelatedPublicationStore {
+    /**
+     * sourceRegistry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry sourceRegistry;
+    /**
+     * publicationIntegration：旧全量文献整合服务，不等同于独立数据整理。
+     */
     private final ResearchPublicationIntegrationService publicationIntegration;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * writers：按优先级排列的来源文献写入器集合。
+     */
     private final List<RelatedPublicationWriter> writers;
+    /**
+     * routes：来源路由持久层或已加载的路由配置。
+     */
     private final com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes;
+    /**
+     * membership：根据明确资源路由判断本库归属的组件。
+     */
     private final com.example.bioplatform.research.collection.common.service.SourceMembership membership;
 
+    /**
+     * 构造RelatedPublicationStore，注入本组件所需依赖并建立初始状态。
+     * @param sources 已注册的来源适配器或本次选择的来源集合
+     * @param integration 旧全量文献整合服务
+     * @param json JSON解析与序列化组件
+     * @param writers 按优先级排列的来源文献写入器集合
+     * @param routes 来源路由持久层或已加载的路由配置
+     * @param membership 根据明确资源路由判断本库归属的组件
+     */
     public RelatedPublicationStore(ResearchPublicationSourceRegistry sources, ResearchPublicationIntegrationService integration, ObjectMapper json, List<RelatedPublicationWriter> writers, com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes, com.example.bioplatform.research.collection.common.service.SourceMembership membership) {
         this.routes = routes;
         this.membership = membership;

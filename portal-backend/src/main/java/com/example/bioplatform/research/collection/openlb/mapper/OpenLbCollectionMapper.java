@@ -73,6 +73,8 @@ public interface OpenLbCollectionMapper {
 
     /**
      * 一条失败任务的差异化更新数据，用于 SQL CASE WHEN 批量写入错误。
+     * @param pmid 已有PubMed标识；为空时不通过标题猜补
+     * @param error 本次处理产生的错误信息
      */
     record FailureRow(String pmid, String error) {
     }

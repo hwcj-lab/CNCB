@@ -25,14 +25,44 @@ import java.util.function.BooleanSupplier;
  */
 @Component
 public class NativeRelatedPublicationWriter {
+    /**
+     * gsa：GSA来源的持久化或元数据访问组件。
+     */
     private final GsaCollectionMapper gsa;
+    /**
+     * projects：BioProject元数据访问组件或项目结果集合。
+     */
     private final BioProjectCollectionMapper projects;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * integration：旧全量文献整合服务。
+     */
     private final ResearchPublicationIntegrationService integration;
+    /**
+     * tx：事务执行模板，保证本批数据与进度一起提交或回滚。
+     */
     private final TransactionTemplate tx;
+    /**
+     * metadata：来源元数据补全组件或规范化元数据结果。
+     */
     private final PublicationMetadataEnricher metadata;
+    /**
+     * http：共享HTTP传输组件或HTTP客户端。
+     */
     private final CollectionHttpTransport http = new CollectionHttpTransport();
 
+    /**
+     * 构造NativeRelatedPublicationWriter，注入本组件所需依赖并建立初始状态。
+     * @param gsa GSA来源的持久化或元数据访问组件
+     * @param projects BioProject元数据访问组件或项目结果集合
+     * @param json JSON解析与序列化组件
+     * @param integration 旧全量文献整合服务
+     * @param tx 事务执行模板，保证本批数据与进度一起提交或回滚
+     * @param resolver 当前选择的来源或资源解析器
+     */
     public NativeRelatedPublicationWriter(GsaCollectionMapper gsa, BioProjectCollectionMapper projects, ObjectMapper json, ResearchPublicationIntegrationService integration, TransactionTemplate tx, BioProjectRelatedResourceResolver resolver) {
         this.gsa = gsa;
         this.projects = projects;
@@ -42,13 +72,32 @@ public class NativeRelatedPublicationWriter {
         metadata = new PublicationMetadataEnricher(http, json, resolver);
     }
 
+    /**
+     * 判断该来源是否具备无PMID出版记录的专用写入支持。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @return true表示满足上述条件，false表示不满足
+     */
     public boolean supportsSource(String code) {
         return Set.of("GSA", "BIOPROJECT").contains(code);
     }
 
+    /**
+     * 来源唯一值的类型与内容组合，用于原库写入、查询和关联边定位。
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param value 待校验、转换或合并的值
+     */
     public record Identifier(String type, String value) {
     }
 
+    /**
+     * 将无PMID的项目出版记录交给来源专用解析及写入流程，保持稳定业务键并标记为关联记录。
+     * @param database 本次处理的数据库来源编码
+     * @param reference 原始出版信息引用对象
+     * @param delay 请求或处理间隔，具体单位见调用方法
+     * @param stop 停止请求标记或用于检查停止状态的回调
+     * @param rootPmid 当前根文献PMID
+     * @return 按上述规则计算或读取的Identifier结果
+     */
     public Identifier write(String database, JsonNode reference, long delay, BooleanSupplier stop, String rootPmid) throws Exception {
         if (!Set.of("GSA", "BIOPROJECT").contains(database))
             throw new IllegalStateException("无PMID项目文献的稳定键写入尚未适配来源：" + database);
@@ -137,11 +186,28 @@ public class NativeRelatedPublicationWriter {
         });
     }
 
+    /**
+     * 为当前出版记录提取可用于入库及关联边的来源业务唯一值。
+     * @param pmid 已有PubMed标识；为空时不通过标题猜补
+     * @param doi DOI标识；匹配前按调用链统一规范化
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的Identifier结果
+     */
     private static Identifier identifier(String pmid, String doi, String key) {
         return pmid != null ? new Identifier("PMID", pmid) : doi != null ? new Identifier("DOI", doi) : new Identifier("SOURCE_KEY", key);
     }
 
+    /**
+     * 原生出版记录写入中的资助载荷辅助器，复用统一的基金合并规则。
+     */
     private static class GrantPayloadsHelper {
+        /**
+         * 合并当前业务对象的互补信息，按本类规则去重，避免用空字段覆盖已有有效值。
+         * @param a 参与比较或合并的第一项
+         * @param b 参与比较或合并的第二项
+         * @param j 待读取的JSON节点
+         * @return 按上述规则计算或读取的String结果
+         */
         static String merge(String a, String b, ObjectMapper j) {
             return com.example.bioplatform.research.common.GrantPayloads.merge(a, b, j);
         }

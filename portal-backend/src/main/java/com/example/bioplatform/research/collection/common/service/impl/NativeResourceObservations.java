@@ -21,9 +21,20 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class NativeResourceObservations {
+    /**
+     * resources：资源结果、资源来源或资源缓存，类型决定具体用途。
+     */
     private final ResearchResourceService resources;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
+    /**
+     * 把BioProject返回的项目和出版信息转换成规范的资源观察。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param project 已经取得的官方BioProject项目详情节点
+     */
     public void bioProject(String code, JsonNode project) {
         if (!project.path("listPublication").isArray()) throw new IllegalArgumentException("项目缺少原生出版信息数组");
         if (!project.path("listPublication").isEmpty()) return; // 原生论文完成入库后才停用旧无文献资源。
@@ -55,6 +66,11 @@ public class NativeResourceObservations {
         return false;
     }
 
+    /**
+     * 为已确认有支持文献的原库对象构造资源观察，不因元数据暂时缺PMID就当成无文献资源。
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     * @param row 本次处理的一条记录
+     */
     public void supportingResource(String source, JsonNode row) {
         String value = "GENBASE".equals(source) ? first(row, "accession", "accessionRange", "genbase_accessions") : first(row, "craAccession", "accession");
         for (String id : accessions(source, value)) {
@@ -73,6 +89,11 @@ public class NativeResourceObservations {
         }
     }
 
+    /**
+     * 将指定记录或版本标记为失效，保留历史引用；同轮未发布版本的清理由具体实现决定。
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     * @param raw 上游原始载荷或未规范化参数
+     */
     public void retire(String source, String raw) {
         if ("BIOPROJECT".equals(source)) {
             for (String id : raw.split("[,;\\s]+"))
@@ -82,6 +103,12 @@ public class NativeResourceObservations {
         for (String id : accessions(source, raw)) resources.retire(source, id);
     }
 
+    /**
+     * 从已确认的原库内容提取资源登录号并去重。
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     * @param raw 上游原始载荷或未规范化参数
+     * @return 按上述规则计算或读取的List<String>结果
+     */
     static List<String> accessions(String source, String raw) {
         if (raw == null || raw.isBlank()) return List.of();
         // 范围不是单个资源编号，不能将范围端点冒充全部资源，也不展开可能包含百万条的范围。
@@ -94,6 +121,12 @@ public class NativeResourceObservations {
         return List.copyOf(ids);
     }
 
+    /**
+     * 取得第一个符合字段或节点约定的有效内容，没有匹配时返回空值。
+     * @param row 本次处理的一条记录
+     * @param keys 待定位的业务键集合
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String first(JsonNode row, String... keys) {
         for (String key : keys) {
             String value = text(row, key);
@@ -102,10 +135,21 @@ public class NativeResourceObservations {
         return "";
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param row 本次处理的一条记录
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String text(JsonNode row, String key) {
         return com.example.bioplatform.research.common.PublicationValues.text(row, key);
     }
 
+    /**
+     * 从明确日期或年份文本提取有效年份，无法识别时保留缺失。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的Integer结果
+     */
     private static Integer year(String value) {
         if (value == null) return null;
         Matcher m = Pattern.compile("^(\\d{4})(?:$|[-/])").matcher(value);

@@ -33,20 +33,53 @@ import java.util.stream.Collectors;
  */
 @RequiredArgsConstructor
 public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
+    /**
+     * BATCH_SIZE：本组件批量处理的固定数量上限。
+     */
     private static final int BATCH_SIZE = 500;
+    /**
+     * TYPES：本组件支持的维度或类型白名单。
+     */
     private static final Set<String> TYPES = Set.of("YEAR", "TOPIC", "AUTHOR", "INSTITUTION", "FUND", "DATABASE");
+    /**
+     * registry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry registry;
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchSnapshotMapper mapper;
+    /**
+     * integrationService：旧全量文献整合服务。
+     */
     private final ResearchPublicationIntegrationService integrationService;
+    /**
+     * objectMapper：JSON解析与序列化组件。
+     */
     private final ObjectMapper objectMapper;
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     */
     private final AtomicBoolean running = new AtomicBoolean(false);
+    /**
+     * stopRequested：是否收到人工停止请求。
+     */
     private final AtomicBoolean stopRequested = new AtomicBoolean(false);
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "research-snapshot-builder");
         thread.setDaemon(true);
         return thread;
     });
+    /**
+     * currentSnapshotId：当前正在构建的快照ID。
+     */
     private volatile Long currentSnapshotId;
+    /**
+     * currentMessage：供状态接口展示的当前处理说明。
+     */
     private volatile String currentMessage = "尚未启动统计";
     /**
      * 单批基金字典映射；避免逐条访问字典表，也避免在全量快照期间缓存全部文献对象。
@@ -97,11 +130,19 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 读取当前已注册并启用的来源编码及展示名称，前端不维护固定数据库列表。
+     * @return 按上述规则计算或读取的List<ResearchPublicationSourceOption>结果
+     */
     @Override
     public List<ResearchPublicationSourceOption> sourceOptions() {
         return registry.options();
     }
 
+    /**
+     * 请求当前快照构建在检查点停止，避免发布仅生成一部分的统计结果。
+     * @return 按上述规则计算或读取的ResearchSnapshotStatus结果
+     */
     @Override
     public ResearchSnapshotStatus stopBuild() {
         if (running.get()) {
@@ -127,16 +168,29 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
                 mapper.selectLatestSuccess());
     }
 
+    /**
+     * 读取可查询的历史快照版本列表，具体格式由当前统计实现限定。
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDetail>结果
+     */
     @Override
     public List<ResearchSnapshotDetail> versions() {
         return mapper.selectVersions();
     }
 
+    /**
+     * 返回最近成功发布的快照；正在构建或失败的版本不作为可用最新结果。
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail latest() {
         return mapper.selectLatestSuccess();
     }
 
+    /**
+     * 读取最近成功快照的统计结果，没有可用版本时返回明确提示。
+     * @param limitPerDimension 每个维度最多读取的排名数量
+     * @return 按上述规则计算或读取的ResearchSnapshotResult结果
+     */
     @Override
     public ResearchSnapshotResult latestResult(int limitPerDimension) {
         ResearchSnapshotDetail latest = mapper.selectLatestSuccess();
@@ -145,6 +199,12 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return result(latest.getId(), limitPerDimension);
     }
 
+    /**
+     * 按指定快照读取总统计结果，并根据请求限制排名展示数量。
+     * @param snapshotId 统计快照主键
+     * @param limitPerDimension 每个维度最多读取的排名数量
+     * @return 按上述规则计算或读取的ResearchSnapshotResult结果
+     */
     @Override
     public ResearchSnapshotResult result(long snapshotId, int limitPerDimension) {
         return scopedResult(snapshotId, "TOTAL", limitPerDimension);
@@ -164,6 +224,12 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
                 .toList();
     }
 
+    /**
+     * 按快照冻结的主题映射查找该分类对应的数据库，保持历史分类范围稳定。
+     * @param snapshotId 统计快照主键
+     * @param topicCode 总统计主题分类编码
+     * @return 按上述规则计算或读取的List<ResearchSnapshotDatabaseOption>结果
+     */
     @Override
     public List<ResearchSnapshotDatabaseOption> topicDatabases(long snapshotId, String topicCode) {
         String topic = topicCode == null ? "" : topicCode.trim().toUpperCase(Locale.ROOT);
@@ -206,6 +272,11 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return new ResearchSnapshotResult(snapshot, grouped);
     }
 
+    /**
+     * 按标识读取当前资源或快照详情；不存在时由业务异常明确告知调用方。
+     * @param snapshotId 统计快照主键
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail detail(long snapshotId) {
         ResearchSnapshotDetail result = mapper.selectDetail(snapshotId);
@@ -317,6 +388,12 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         if (Objects.equals(currentSnapshotId, snapshotId)) currentSnapshotId = null;
     }
 
+    /**
+     * 只修改快照展示名称，不改变统计结果或快照对应的数据范围。
+     * @param snapshotId 统计快照主键
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的ResearchSnapshotDetail结果
+     */
     @Override
     public ResearchSnapshotDetail renameSnapshot(long snapshotId, String name) {
         detail(snapshotId);
@@ -487,6 +564,17 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return seeds;
     }
 
+    /**
+     * 创建旧版年度或分类维度的预建统计行，供后续累计。
+     * @param snapshotId 统计快照主键
+     * @param scope 统计范围；TOTAL表示总统计，其余为指定来源编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @param label 成员或页面的展示文本
+     * @param year 当前记录或统计点对应的年份
+     * @param count 当前查询或处理得到的数量
+     * @return 按上述规则计算或读取的SnapshotDimensionSeedRow结果
+     */
     private SnapshotDimensionSeedRow seed(long snapshotId, String scope, String type, String key,
                                           String label, int year, long count) {
         SnapshotDimensionSeedRow row = new SnapshotDimensionSeedRow();
@@ -501,6 +589,15 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return row;
     }
 
+    /**
+     * 把旧版预建维度与文献的对应关系追加到批次，达到阈值后统一写入。
+     * @param seedIds 旧版预建维度键到维度ID的映射
+     * @param scope 统计范围；TOTAL表示总统计，其余为指定来源编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @param publicationKey 统一文献身份键，用于统计去重和穿透定位
+     * @param batch 当前批次数据或批次大小
+     */
     private void appendDirectRelation(Map<String, Long> seedIds, String scope, String type, String key,
                                       String publicationKey, List<SnapshotDimensionPublicationRow> batch) {
         Long dimensionId = seedIds.get(seedKey(scope, type, key));
@@ -512,6 +609,13 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         if (batch.size() >= 500) flushDimensionRelations(batch);
     }
 
+    /**
+     * 构造旧版范围、维度类型及成员对应的预建统计点索引键。
+     * @param scope 统计范围；TOTAL表示总统计，其余为指定来源编码
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的String结果
+     */
     private String seedKey(String scope, String type, String key) {
         return scope + "\u001f" + type + "\u001f" + key;
     }
@@ -543,10 +647,19 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         if (notBlank(value)) values.add(normalizeDatabaseCode(value));
     }
 
+    /**
+     * 清理数据库编码中的空白和符号，使配置别名能够稳定匹配。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private String normalizeDatabaseCode(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
     }
 
+    /**
+     * 批量写入旧版维度穿透关系并清空批次，不把全部关系永久保留在内存。
+     * @param rows 本批待处理记录
+     */
     private void flushDimensionRelations(List<SnapshotDimensionPublicationRow> rows) {
         if (rows.isEmpty()) return;
         checkStopped();
@@ -577,6 +690,11 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         if (batch.size() >= 300) flushCandidates(batch);
     }
 
+    /**
+     * 计算旧版维度身份摘要，用于持久化唯一索引及候选去重。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的byte[]结果
+     */
     private byte[] dimensionHash(String value) {
         try {
             return java.security.MessageDigest.getInstance("SHA-256")
@@ -586,6 +704,10 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         }
     }
 
+    /**
+     * 批量写入旧版维度候选行并清空缓冲，供数据库后续聚合。
+     * @param rows 本批待处理记录
+     */
     private void flushCandidates(List<SnapshotDimensionCandidateRow> rows) {
         if (rows.isEmpty()) return;
         checkStopped();
@@ -593,8 +715,21 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         rows.clear();
     }
 
+    /**
+     * 旧版快照各类元数据的文献覆盖统计，用于区分成员数量与文献数量。
+     */
     private static final class SnapshotCoverage {
+        /**
+         * resources：资源结果、资源来源或资源缓存，类型决定具体用途。
+         */
         long resources;
+        /**
+         * year：当前记录或统计点对应的年份。
+         * topic：研究主题编码或主题维度结果。
+         * author：作者维度相关的处理结果或覆盖量。
+         * institution：机构维度相关的处理结果或覆盖量。
+         * fund：资助方维度相关的处理结果或覆盖量。
+         */
         int year, topic, author, institution, fund;
     }
 
@@ -657,6 +792,11 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * 构造或提取原库唯一值，供同来源更新及穿透定位。
+     * @param record 待解析或写入的原始记录
+     * @return 按上述规则计算或读取的String结果
+     */
     private String sourceRecordKey(SourcePublicationRecord record) {
         if (notBlank(record.getSourceRecordKey())) return record.getSourceRecordKey().trim();
         if (notBlank(record.getPmid())) return "PMID:" + record.getPmid().trim();
@@ -671,20 +811,39 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         return doi.trim().toLowerCase(Locale.ROOT).replaceFirst("^https?://(dx\\.)?doi\\.org/", "").replaceFirst("^doi:\\s*", "");
     }
 
+    /**
+     * 清理键值格式，用于当前范围内稳定比较和去重。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private String normalizeKey(String value) {
         return value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 
 
+    /**
+     * 按指定最大长度截断字段或错误文本。
+     * @param value 待校验、转换或合并的值
+     * @param max 允许的最大值或文本长度上限
+     * @return 按上述规则计算或读取的String结果
+     */
     private String truncate(String value, int max) {
         return value.length() <= max ? value : value.substring(0, max);
     }
 
+    /**
+     * 把错误内容转为长度受限的提示，避免超出状态字段长度。
+     * @param ex 当前捕获的异常
+     * @return 按上述规则计算或读取的String结果
+     */
     private String safeError(Exception ex) {
         String m = ex.getMessage();
         return truncate(m == null ? ex.getClass().getSimpleName() : m, 2000);
     }
 
+    /**
+     * 在批次或维度边界检查人工停止标记，避免发布不完整快照。
+     */
     private void checkStopped() {
         if (stopRequested.get()) throw new SnapshotStoppedException();
     }
@@ -707,6 +866,9 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
         executor.shutdownNow();
     }
 
+    /**
+     * 旧版快照在安全检查点响应停止请求的内部异常。
+     */
     private static class SnapshotStoppedException extends RuntimeException {
     }
 
@@ -715,15 +877,42 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
      * 单批统计使用的轻量文献视图，不保留来源关系或全量文献副本。
      */
     private static class MergedPublication {
+        /**
+         * key：当前对象的业务匹配键。
+         */
         final String key;
+        /**
+         * pubYear：解析后的文献发表年份，缺失时为空。
+         */
         Integer pubYear;
+        /**
+         * kind：当前记录或处理结果的类别。
+         */
         String kind = "PUBLICATION";
+        /**
+         * authorsJson：逐作者原始信息及作者所属机构的JSON载荷。
+         * affiliationInfo：来源提供的机构汇总原文，不应随意分配给所有作者。
+         * grantsJson：保留完整资助记录的JSON载荷，便于整理时重新解析。
+         * cncbBanksJson：CNCB资源关联数组，包含db、accession和link等。
+         * keywordList：来源提供的论文关键词载荷。
+         * meshHeadingsJson：PubMed MeSH主题词的原始JSON。
+         * sourceCodes：参与本次处理的来源编码集合或拼接值。
+         */
         String authorsJson, affiliationInfo, grantsJson, cncbBanksJson, keywordList, meshHeadingsJson, sourceCodes;
 
+        /**
+         * 构造MergedPublication，注入本组件所需依赖并建立初始状态。
+         * @param key 当前对象的业务匹配键
+         */
         MergedPublication(String key) {
             this.key = key;
         }
 
+        /**
+         * 把旧全量整合记录转换为旧快照内部的统一文献模型。
+         * @param row 本次处理的一条记录
+         * @return 按上述规则计算或读取的MergedPublication结果
+         */
         static MergedPublication fromIntegrated(IntegratedPublicationRecord row) {
             MergedPublication item = new MergedPublication(row.getPublicationKey());
             item.kind = row.getRecordKind();
@@ -738,6 +927,12 @@ public class ResearchSnapshotServiceImpl implements ResearchSnapshotService {
             return item;
         }
 
+        /**
+         * 把来源适配记录转换为旧快照内部的统一文献模型。
+         * @param row 本次处理的一条记录
+         * @param sourceKey 来源内的稳定业务唯一键
+         * @return 按上述规则计算或读取的MergedPublication结果
+         */
         static MergedPublication fromSource(SourcePublicationRecord row, String sourceKey) {
             MergedPublication item = new MergedPublication(sourceKey);
             item.kind = row.getRecordKind();

@@ -32,21 +32,63 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Service
 public class PreparationService {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final PreparationMapper mapper;
+    /**
+     * registry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry registry;
+    /**
+     * dictionaries：读取分类与基金名称字典的持久层。
+     */
     private final ResearchSnapshotMapper dictionaries;
+    /**
+     * routing：OpenLB来源分流组件。
+     */
     private final OpenLbRoutingMapper routing;
+    /**
+     * parser：当前组件使用的来源记录或元数据解析器。
+     */
     private final PreparedMetadataParser parser;
+    /**
+     * membership：根据明确资源路由判断本库归属的组件。
+     */
     private final SourceMembership membership;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * tx：事务执行模板，保证本批数据与进度一起提交或回滚。
+     */
     private final TransactionTemplate tx;
+    /**
+     * executor：本组件后台任务执行器。
+     */
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         var t = new Thread(r, "research-preparation");
         t.setDaemon(true);
         return t;
     });
+    /**
+     * running：当前进程是否正在执行对应后台任务。
+     * stop：停止请求标记或用于检查停止状态的回调。
+     */
     private final AtomicBoolean running = new AtomicBoolean(), stop = new AtomicBoolean();
 
+    /**
+     * 构造PreparationService，注入本组件所需依赖并建立初始状态。
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     * @param registry 可用文献来源的注册中心
+     * @param dictionaries 读取分类与基金名称字典的持久层
+     * @param routing OpenLB来源分流组件
+     * @param parser 当前组件使用的来源记录或元数据解析器
+     * @param membership 根据明确资源路由判断本库归属的组件
+     * @param json JSON解析与序列化组件
+     * @param tx 事务执行模板，保证本批数据与进度一起提交或回滚
+     */
     public PreparationService(PreparationMapper mapper, ResearchPublicationSourceRegistry registry, ResearchSnapshotMapper dictionaries, OpenLbRoutingMapper routing, PreparedMetadataParser parser, SourceMembership membership, ObjectMapper json, TransactionTemplate tx) {
         this.mapper = mapper;
         this.registry = registry;
@@ -58,6 +100,9 @@ public class PreparationService {
         this.tx = tx;
     }
 
+    /**
+     * overlapSeconds：增量扫描向前回退的重叠秒数，用于覆盖边界更新。
+     */
     @org.springframework.beans.factory.annotation.Value("${app.research-preparation.overlap-seconds:5}")
     private long overlapSeconds = 5;
 
@@ -453,6 +498,11 @@ public class PreparationService {
         mapper.updateJob(job);
     }
 
+    /**
+     * 把结构化对象序列化成JSON，供配置冻结或稳定摘要使用。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private String encode(Object value) {
         try {
             return json.writeValueAsString(value);
@@ -461,6 +511,11 @@ public class PreparationService {
         }
     }
 
+    /**
+     * 把已保存的JSON列表还原为业务集合；结构异常时明确报错。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的List<String>结果
+     */
     public List<String> decode(String value) {
         try {
             return json.readValue(value, json.getTypeFactory().constructCollectionType(List.class, String.class));
@@ -469,24 +524,50 @@ public class PreparationService {
         }
     }
 
+    /**
+     * 取得来源稳定业务键；缺少业务键时不能用不稳定分页位置代替。
+     * @param r 当前响应、记录或文献对象
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String sourceKey(SourcePublicationRecord r) {
         if (clean(r.getSourceRecordKey()) == null) throw new IllegalStateException("Missing source business key");
         return r.getSourceRecordKey();
     }
 
+    /**
+     * 去除DOI访问地址前缀并规范大小写，用于已有标识的匹配。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     public static String doi(String value) {
         String s = clean(value);
         return s == null ? null : s.toLowerCase(Locale.ROOT).replaceFirst("^https?://(dx\\.)?doi\\.org/", "").replaceFirst("^doi:\\s*", "");
     }
 
+    /**
+     * 清理字段两端空白和无意义缺失值，返回可参与比较的规范文本。
+     * @param v 待处理的原始值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String clean(String v) {
         return v == null || v.isBlank() || "null".equalsIgnoreCase(v.trim()) ? null : v.trim();
     }
 
+    /**
+     * 按指定最大长度截断字段或错误文本。
+     * @param v 待处理的原始值
+     * @param n 长度或数量上限
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String truncate(String v, int n) {
         return v == null ? "Preparation failed" : v.substring(0, Math.min(v.length(), n));
     }
 
+    /**
+     * 构造带稳定错误码的业务冲突异常，交由全局异常处理器统一返回。
+     * @param m 当前成员或合并目标
+     * @return 按上述规则计算或读取的BusinessException结果
+     */
     private static BusinessException conflict(String m) {
         return new BusinessException(HttpStatus.CONFLICT, "PREPARATION_NOT_READY", m);
     }

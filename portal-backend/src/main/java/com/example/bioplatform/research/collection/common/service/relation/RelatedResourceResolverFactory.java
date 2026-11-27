@@ -12,8 +12,16 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 public class RelatedResourceResolverFactory {
+    /**
+     * resolvers：可供选择的资源或唯一值解析器实现集合。
+     */
     private final List<RelatedResourceResolver> resolvers;
 
+    /**
+     * 从已注册实现中查找能处理输入数据库名称的解析器；找不到时交给调用方决定回退路径。
+     * @param name 当前对象或资源的展示名称
+     * @return 按上述规则计算或读取的RelatedResourceResolver结果
+     */
     public RelatedResourceResolver find(String name) {
         if (name == null) return null;
         return resolvers.stream().filter(r -> r.supportedDatabaseNames().stream().anyMatch(alias -> alias.equalsIgnoreCase(name.trim()))).findFirst().orElse(null);

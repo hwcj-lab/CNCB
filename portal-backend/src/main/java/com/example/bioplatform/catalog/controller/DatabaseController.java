@@ -20,6 +20,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Validated
 public class DatabaseController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final CatalogService service;
 
     /** 返回页面首屏需要的完整推荐分组。 */

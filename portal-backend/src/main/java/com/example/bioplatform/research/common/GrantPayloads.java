@@ -10,6 +10,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * 规范化采集端资助原始JSON；优先保存grants，缺失时将funding编号包装成grantId对象。
  */
 public final class GrantPayloads {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private GrantPayloads() {
     }
 
@@ -37,11 +40,22 @@ public final class GrantPayloads {
         return result.toString();
     }
 
+    /**
+     * 判断资助载荷是否真正包含可用值，空容器不视为已有基金。
+     * @param node 当前JSON、XML或队列节点
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean hasValues(JsonNode node) {
         return node != null && !node.isNull() && !(node.isArray() && node.isEmpty())
                 && !(node.isTextual() && node.asText().isBlank());
     }
 
+    /**
+     * 把单个对象或数组转换为统一数组形态，方便后续无损合并。
+     * @param node 当前JSON、XML或队列节点
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     * @return 按上述规则计算或读取的ArrayNode结果
+     */
     private static ArrayNode asArray(JsonNode node, ObjectMapper mapper) {
         if (node.isArray()) return (ArrayNode) node.deepCopy();
         ArrayNode array = mapper.createArrayNode();
@@ -49,6 +63,12 @@ public final class GrantPayloads {
         return array;
     }
 
+    /**
+     * 把funding载荷中的编号或对象转换为统一资助条目并追加。
+     * @param target 接收合并或解析结果的目标对象
+     * @param funding 上游funding载荷，可能只包含资助编号
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     private static void appendFunding(ArrayNode target, JsonNode funding, ObjectMapper mapper) {
         if (!hasValues(funding)) return;
         if (funding.isArray()) {
@@ -59,6 +79,12 @@ public final class GrantPayloads {
         } else appendFundingValue(target, funding, mapper);
     }
 
+    /**
+     * 把单个funding编号包装为grantId对象；已有对象按原结构保留有效字段。
+     * @param target 接收合并或解析结果的目标对象
+     * @param value 待校验、转换或合并的值
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     private static void appendFundingValue(ArrayNode target, JsonNode value, ObjectMapper mapper) {
         if (value == null || value.isNull()) return;
         if (value.isObject() && value.has("grantId")) {
@@ -72,6 +98,12 @@ public final class GrantPayloads {
         target.add(item);
     }
 
+    /**
+     * 从JSON载荷追加可用资助记录，兼容不同上游字段外形。
+     * @param target 接收合并或解析结果的目标对象
+     * @param value 待校验、转换或合并的值
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     private static void appendJson(ArrayNode target, String value, ObjectMapper mapper) {
         if (value == null || value.isBlank()) return;
         try {
@@ -83,6 +115,11 @@ public final class GrantPayloads {
         }
     }
 
+    /**
+     * 按业务摘要向目标数组追加尚未存在的资助条目。
+     * @param target 接收合并或解析结果的目标对象
+     * @param candidate 准备追加或合并的一条候选资助记录
+     */
     private static void addUnique(ArrayNode target, JsonNode candidate) {
         String key = grantKey(candidate);
         for (JsonNode existing : target) {

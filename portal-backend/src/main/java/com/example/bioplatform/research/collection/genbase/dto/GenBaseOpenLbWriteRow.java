@@ -10,5 +10,8 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class GenBaseOpenLbWriteRow extends PublicationEnrichmentWrite {
+    /**
+     * paperId：GenBase支持文章的原库paper_id。
+     */
     private Long paperId;
 }

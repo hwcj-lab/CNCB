@@ -12,9 +12,20 @@ import java.util.Map;
  */
 @Component
 public class RelationDiscoveryFactory {
+    /**
+     * strategies：按优先级排列的关联发现策略集合。
+     */
     private final List<RelationDiscoveryStrategy> strategies;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
+    /**
+     * 构造RelationDiscoveryFactory，注入本组件所需依赖并建立初始状态。
+     * @param strategies 按优先级排列的关联发现策略集合
+     * @param json JSON解析与序列化组件
+     */
     public RelationDiscoveryFactory(List<RelationDiscoveryStrategy> strategies, ObjectMapper json) {
         this.strategies = strategies.stream().sorted(Comparator.comparingInt(RelationDiscoveryStrategy::priority).thenComparing(RelationDiscoveryStrategy::code)).toList();
         this.json = json;

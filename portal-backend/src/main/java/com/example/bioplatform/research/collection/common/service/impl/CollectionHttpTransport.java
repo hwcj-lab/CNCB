@@ -22,12 +22,24 @@ import java.util.function.Consumer;
  */
 @Component
 public class CollectionHttpTransport {
+    /**
+     * delay：请求或处理间隔，具体单位见调用方法。
+     * nextRequest：下次允许发出上游请求的时间边界。
+     */
     private volatile long delay = 800, nextRequest;
 
+    /**
+     * 规范化请求间隔配置，避免小于采集器的限速下限。
+     * @return 按上述规则计算或读取的long结果
+     */
     public long delay() {
         return delay;
     }
 
+    /**
+     * 设置共享HTTP传输的限速、尝试次数及停止检查规则。
+     * @param delay 请求或处理间隔，具体单位见调用方法
+     */
     public void configure(long delay) {
         this.delay = delay;
     }
@@ -98,11 +110,28 @@ public class CollectionHttpTransport {
         }
     }
 
+    /**
+     * HTTP响应消费回调，避免传输层绑定具体数据库解析规则。
+     */
     @FunctionalInterface
     private interface Receiver {
+        /**
+         * 消费已经建立的HTTP响应并返回解析结果；响应流的关闭由传输层负责。
+         * @param in 原始输入流或输入对象
+         * @param length 截断后的文本长度上限
+         */
         void read(InputStream in, long length) throws Exception;
     }
 
+    /**
+     * 按传输配置发送请求并交给响应处理器；限流及网络异常遵循有限重试规则。
+     * @param url 当前请求或资源的访问地址
+     * @param attempts 当前或配置的尝试次数
+     * @param stopped 是否已经停止或检查停止状态的回调
+     * @param progress 用于持久化或展示进度的回调
+     * @param receiver 消费网络响应体的回调
+     * @param reset 是否重置相关任务状态
+     */
     private void execute(String url, int attempts, BooleanSupplier stopped, Consumer<String> progress, Receiver receiver, Runnable reset) throws Exception {
         Exception error = null;
         for (int attempt = 1; attempt <= attempts; attempt++) {
@@ -143,17 +172,30 @@ public class CollectionHttpTransport {
         throw error == null ? new IOException("采集请求失败") : error;
     }
 
+    /**
+     * 为当前请求预留全局发送时刻，避免多个调用同时突破配置的请求间隔。
+     * @return 按上述规则计算或读取的long结果
+     */
     private synchronized long reserveRequest() {
         long now = System.currentTimeMillis(), target = Math.max(now, nextRequest);
         nextRequest = target + delay;
         return target - now;
     }
 
+    /**
+     * 检查人工停止或线程中断状态，在继续请求或写入前及时退出。
+     * @param stopped 是否已经停止或检查停止状态的回调
+     */
     private static void check(BooleanSupplier stopped) throws InterruptedException {
         if (stopped.getAsBoolean() || Thread.currentThread().isInterrupted())
             throw new InterruptedException("采集已停止");
     }
 
+    /**
+     * 按指定时长等待，并持续遵守线程中断或停止约定。
+     * @param ms 等待时长，单位毫秒
+     * @param stopped 是否已经停止或检查停止状态的回调
+     */
     private static void pause(long ms, BooleanSupplier stopped) throws InterruptedException {
         long end = System.currentTimeMillis() + ms;
         while (System.currentTimeMillis() < end) {

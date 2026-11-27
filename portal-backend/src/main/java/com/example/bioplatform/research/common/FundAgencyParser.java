@@ -10,6 +10,9 @@ import java.util.Map;
  * 快照基金名称口径：优先agency，否则只接受编号在本地字典中匹配的全称。
  */
 public final class FundAgencyParser {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private FundAgencyParser() {
     }
 
@@ -64,6 +67,12 @@ public final class FundAgencyParser {
         return result;
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param node 当前JSON、XML或队列节点
+     * @param key 当前对象的业务匹配键
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String text(JsonNode node, String key) {
         if (node == null || !node.isObject()) return "";
         JsonNode value = node.get(key);

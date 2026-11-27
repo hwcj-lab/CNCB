@@ -11,9 +11,23 @@ import java.util.List;
  * 配置驱动的实际数据库来源；新增同结构来源无需修改快照算法。
  */
 public class RoutedResearchPublicationSource implements ResearchPublicationSource {
+    /**
+     * code：当前来源、策略或业务响应使用的编码。
+     * name：当前对象或资源的展示名称。
+     * table：服务端白名单提供的目标表名，不接收任意前端表名。
+     */
     private final String code, name, table;
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final RoutedPublicationMapper mapper;
 
+    /**
+     * 构造RoutedResearchPublicationSource，注入本组件所需依赖并建立初始状态。
+     * @param code 当前来源、策略或业务响应使用的编码
+     * @param name 当前对象或资源的展示名称
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     public RoutedResearchPublicationSource(String code, String name, RoutedPublicationMapper mapper) {
         this.code = code;
         this.name = name;
@@ -35,6 +49,11 @@ public class RoutedResearchPublicationSource implements ResearchPublicationSourc
         return name;
     }
 
+    /**
+     * 返回当前来源的内部标记，用于来源记录构造和范围区分。
+     * @param rows 本批待处理记录
+     * @return 按上述规则计算或读取的List<SourcePublicationRecord>结果
+     */
     private List<SourcePublicationRecord> tag(List<SourcePublicationRecord> rows) {
         rows.forEach(r -> r.setSourceCode(code));
         return rows;

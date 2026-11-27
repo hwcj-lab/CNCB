@@ -26,6 +26,9 @@ import java.util.List;
 @Validated
 @Tag(name = "科研统计快照", description = "按需汇总所有已注册文献来源，并保留可追溯历史版本")
 public class ResearchSnapshotController {
+    /**
+     * service：控制器依赖的业务服务，不在控制器中实现持久化逻辑。
+     */
     private final ResearchSnapshotService service;
 
     /**

@@ -13,15 +13,40 @@ import java.util.Locale;
  */
 @Component
 public class ResearchPublicationSourceRegistry {
+    /**
+     * sources：已注册的来源适配器或本次选择的来源集合。
+     */
     private final List<ResearchPublicationSource> sources;
+    /**
+     * routes：来源路由持久层或已加载的路由配置。
+     */
     private final com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes;
+    /**
+     * routed：配置驱动的通用来源或来源持久层。
+     */
     private final com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper routed;
+    /**
+     * resources：资源结果、资源来源或资源缓存，类型决定具体用途。
+     */
     private final com.example.bioplatform.research.integration.mapper.ResearchResourceMapper resources;
 
+    /**
+     * 构造ResearchPublicationSourceRegistry，注入本组件所需依赖并建立初始状态。
+     * @param sources 已注册的来源适配器或本次选择的来源集合
+     * @param routes 来源路由持久层或已加载的路由配置
+     * @param routed 配置驱动的通用来源或来源持久层
+     */
     public ResearchPublicationSourceRegistry(List<ResearchPublicationSource> sources, com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes, com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper routed) {
         this(sources, routes, routed, null);
     }
 
+    /**
+     * 构造ResearchPublicationSourceRegistry，注入本组件所需依赖并建立初始状态。
+     * @param sources 已注册的来源适配器或本次选择的来源集合
+     * @param routes 来源路由持久层或已加载的路由配置
+     * @param routed 配置驱动的通用来源或来源持久层
+     * @param resources 资源结果、资源来源或资源缓存，类型决定具体用途
+     */
     @org.springframework.beans.factory.annotation.Autowired
     public ResearchPublicationSourceRegistry(List<ResearchPublicationSource> sources, com.example.bioplatform.research.collection.openlb.mapper.OpenLbRoutingMapper routes, com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper routed, com.example.bioplatform.research.integration.mapper.ResearchResourceMapper resources) {
         this.resources = resources;
@@ -38,6 +63,11 @@ public class ResearchPublicationSourceRegistry {
         return all(true);
     }
 
+    /**
+     * 取得已注册来源集合；按参数决定是否过滤停用来源及是否包装无文献资源适配器。
+     * @param includeResources 是否计入无文献资源；与是否包含关联记录独立
+     * @return 按上述规则计算或读取的List<ResearchPublicationSource>结果
+     */
     public List<ResearchPublicationSource> all(boolean includeResources) {
         java.util.Map<String, ResearchPublicationSource> result = new java.util.TreeMap<>();
         sources.stream().filter(ResearchPublicationSource::enabled).forEach(source -> result.put(source.sourceCode(), source));

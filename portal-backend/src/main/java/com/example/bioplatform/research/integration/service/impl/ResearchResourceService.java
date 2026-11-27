@@ -17,10 +17,24 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class ResearchResourceService {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final ResearchResourceMapper mapper;
+    /**
+     * registry：可用文献来源的注册中心。
+     */
     private final ResearchPublicationSourceRegistry registry;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
+    /**
+     * 写入原库资源观察结果；资源已有自身文献时关闭独立资源记录，避免重复计数。
+     * @param rows 本批待处理记录
+     * @return 按上述规则计算或读取的int结果
+     */
     @Transactional
     public int observe(List<ResearchResourceInput> rows) {
         int changed = 0;

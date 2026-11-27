@@ -18,9 +18,19 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class BioProjectDiscoveryStrategy implements RelationDiscoveryStrategy {
+    /**
+     * projects：BioProject元数据访问组件或项目结果集合。
+     */
     private final BioProjectMetadataClient projects;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
+    /**
+     * 返回当前发现策略的稳定编码，用于选择路径和记录发现来源。
+     * @return 按上述规则计算或读取的String结果
+     */
     public String code() {
         return "BIOPROJECT";
     }
@@ -39,6 +49,12 @@ public class BioProjectDiscoveryStrategy implements RelationDiscoveryStrategy {
         return input.bioprojectAccession() != null && !input.bioprojectAccession().isBlank();
     }
 
+    /**
+     * 按本策略从已有资源元数据发现关联目标，返回目标及证据；不自行展开后续递归。
+     * @param input 本次处理的统一输入
+     * @param control 每次请求前执行的限速或停止检查回调
+     * @return 按上述规则计算或读取的RelationDiscoveryResult结果
+     */
     public RelationDiscoveryResult discover(RelationDiscoveryInput input, BeforeRequest control) {
         var project = projects.fetch(input.bioprojectAccession());
         Map<String, String> found = new LinkedHashMap<>();

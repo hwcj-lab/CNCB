@@ -17,11 +17,23 @@ import java.util.List;
  * 流式读取article.publications；每个批次完成入库后再推进断点，不加载整个JSON树。
  */
 public final class GsaStatisticsReader {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private GsaStatisticsReader() {
     }
 
+    /**
+     * 消费一批来源记录的回调；调用成功后读取器才推进持久化进度。
+     */
     @FunctionalInterface
     public interface BatchConsumer {
+        /**
+         * 消费已解析的一批记录；只有调用成功后，读取方才可继续推进对应批次。
+         * @param rows 本批待处理记录
+         * @param nextIndex 下一条待处理列表记录的索引
+         * @return true表示满足上述条件，false表示不满足
+         */
         boolean accept(List<JsonNode> rows, long nextIndex) throws Exception;
     }
 

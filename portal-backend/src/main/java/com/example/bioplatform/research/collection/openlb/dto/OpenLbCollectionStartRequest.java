@@ -4,6 +4,14 @@ package com.example.bioplatform.research.collection.openlb.dto;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
+/**
+ * OpenLB采集的并发、批次、限速及失败保护参数，不包含统计快照选项。
+ * @param concurrency 同时执行上游读取的工作线程数量，由请求及默认配置限定
+ * @param batchSize 每批读取或写入的记录数量上限
+ * @param minDelayMs 最小请求间隔，单位毫秒
+ * @param maxAttempts 允许尝试的次数上限
+ * @param stopAfterConsecutiveThrottles 连续限流或失败达到此阈值时停止当前采集，保留断点
+ */
 public record OpenLbCollectionStartRequest(
         @Min(1) @Max(8) Integer concurrency,
         @Min(1) @Max(200) Integer batchSize,

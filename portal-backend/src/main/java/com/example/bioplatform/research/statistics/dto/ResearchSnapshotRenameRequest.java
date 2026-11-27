@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 
 /**
  * 修改快照展示名称。
+ * @param name 当前对象或资源的展示名称
  */
 public record ResearchSnapshotRenameRequest(
         @NotBlank(message = "快照名称不能为空")

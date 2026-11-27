@@ -16,8 +16,17 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class OpenLbRoutingService {
+    /**
+     * mapper：本组件使用的持久层接口，SQL由对应XML维护。
+     */
     private final OpenLbRoutingMapper mapper;
+    /**
+     * fallback：主路径无结果时使用的回退读取器。
+     */
     private final OpenLbCollectionMapper fallback;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
 
     /**

@@ -15,10 +15,23 @@ import java.util.*;
  */
 @Component
 public class PreparedMetadataParser {
+    /**
+     * TYPES：本组件支持的维度或类型白名单。
+     */
     public static final List<String> TYPES = List.of("AUTHOR", "INSTITUTION", "FUND", "TOPIC", "YEAR");
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * processor：共享的作者、机构、资助方和主题处理组件。
+     */
     private final PublicationMetadataProcessor processor;
 
+    /**
+     * 构造PreparedMetadataParser，注入本组件所需依赖并建立初始状态。
+     * @param json JSON解析与序列化组件
+     */
     public PreparedMetadataParser(ObjectMapper json) {
         this.json = json;
         processor = new PublicationMetadataProcessor(json);
@@ -32,6 +45,11 @@ public class PreparedMetadataParser {
         return "research_prepared_" + type.toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 单篇文献五类成员及其内容摘要，供事务内持久化和变化检测。
+     * @param members 按AUTHOR、INSTITUTION、FUND、TOPIC、YEAR分别保存的文献内成员列表
+     * @param contentHash 解析内容摘要，用于判断记录是否发生变化
+     */
     public record Parsed(Map<String, List<PreparedMember>> members, String contentHash) {
     }
 
@@ -153,6 +171,12 @@ public class PreparedMetadataParser {
         return m;
     }
 
+    /**
+     * 把当前维度的规范成员加入文献内去重集合。
+     * @param values 待遍历或去重的值集合
+     * @param type 当前分类、维度或唯一值类型，按调用上下文解释
+     * @param label 成员或页面的展示文本
+     */
     private static void add(Map<String, LinkedHashMap<String, PreparedMember>> values, String type, String label) {
         var m = member(label, label);
         values.get(type).putIfAbsent(m.getMemberKey(), m);

@@ -111,6 +111,8 @@ public interface GenBaseCollectionMapper {
 
     /**
      * 一条补全失败记录。
+     * @param paperId GenBase支持文章的原库paper_id
+     * @param error 本次处理产生的错误信息
      */
     record EnrichmentFailure(Long paperId, String error) {
     }

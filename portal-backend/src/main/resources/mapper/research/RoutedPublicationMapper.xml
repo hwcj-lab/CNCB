@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.collection.common.mapper.RoutedPublicationMapper">
+    <!-- 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,CONCAT('PMID:',pmid)
         source_record_key,source_url,pmid,doi,title,pub_year,journal_title,authors_json,affiliation_info,grants_json,keyword_list,mesh_headings_json,cncb_banks_json,is_primary
         primary_flag FROM ${table} WHERE id&gt;#{after} AND (is_primary=1 OR #{related}=TRUE) ORDER BY id LIMIT #{size}
     </select>
+    <!-- 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM ${table} WHERE is_primary=1 OR #{related}=TRUE
     </select>
+    <!-- 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <select id="years" resultType="java.lang.Integer">
         SELECT DISTINCT pub_year FROM ${table} WHERE pub_year IS NOT NULL AND (is_primary=1 OR #{related}=TRUE)
     </select>
+    <!-- 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <select id="identifiers"
             resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,CONCAT('PMID:',pmid)
@@ -24,6 +28,7 @@
             <foreach collection='dois' item='v' open='(' close=')' separator=','>#{v}</foreach>
         </if>
     </select>
+    <!-- 查询本方法指定的记录；涉及${table}表。动态表标识只能来自服务端白名单。 -->
     <select id="changedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
 
         SELECT update_time source_updated_time, id source_row_id,CONCAT('PMID:',pmid)

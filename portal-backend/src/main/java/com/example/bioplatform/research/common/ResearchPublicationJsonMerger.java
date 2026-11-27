@@ -12,6 +12,9 @@ import java.util.*;
  * 合并跨来源文献JSON时按业务对象补充信息，避免用“较长字符串”覆盖有用字段。
  */
 public final class ResearchPublicationJsonMerger {
+    /**
+     * 限制本工具或内部状态对象的实例化入口，具体创建方式由所属类控制。
+     */
     private ResearchPublicationJsonMerger() {
     }
 
@@ -58,6 +61,13 @@ public final class ResearchPublicationJsonMerger {
         }
     }
 
+    /**
+     * 从载荷追加作者并按作者业务身份合并，同时保留逐作者的机构信息。
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     * @param authors 已解析的作者信息集合
+     * @param indexes 待比较或更新的来源记录索引
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     private static void appendAuthors(JsonNode source, List<ObjectNode> authors,
                                       Map<String, List<Integer>> indexes, ObjectMapper mapper) {
         for (JsonNode node : source) {
@@ -84,6 +94,13 @@ public final class ResearchPublicationJsonMerger {
         }
     }
 
+    /**
+     * 追加cncbBanks资源条目并按资源业务标识去重。
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     * @param banks 原始或合并后的cncbBanks资源条目
+     * @param indexes 待比较或更新的来源记录索引
+     * @param mapper 本组件使用的持久层接口，SQL由对应XML维护
+     */
     private static void appendBanks(JsonNode source, List<ObjectNode> banks,
                                     Map<String, Integer> indexes, ObjectMapper mapper) {
         for (JsonNode node : source) {
@@ -102,6 +119,11 @@ public final class ResearchPublicationJsonMerger {
         }
     }
 
+    /**
+     * 合并同一作者的互补字段和署名机构，不把不同作者的机构交叉组合。
+     * @param target 接收合并或解析结果的目标对象
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     */
     private static void mergeAuthorFields(ObjectNode target, ObjectNode source) {
         source.fields().forEachRemaining(entry -> {
             String field = entry.getKey();
@@ -116,6 +138,11 @@ public final class ResearchPublicationJsonMerger {
         });
     }
 
+    /**
+     * 只补充目标缺少的有效字段，保留已有信息供追溯。
+     * @param target 接收合并或解析结果的目标对象
+     * @param source 来源编码、来源节点或待合并对象，按声明类型解释
+     */
     private static void mergeMissingFields(ObjectNode target, ObjectNode source) {
         source.fields().forEachRemaining(entry -> {
             JsonNode existing = target.get(entry.getKey());
@@ -124,6 +151,11 @@ public final class ResearchPublicationJsonMerger {
         });
     }
 
+    /**
+     * 规范化作者姓名用于同记录内部合并，不代表已经验证的全局自然人身份。
+     * @param author 作者维度相关的处理结果或覆盖量
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String authorNameKey(ObjectNode author) {
         String identifier = first(author, "identifier");
         if (!identifier.isEmpty()) return "id:" + normalize(first(author, "identifierSource") + ":" + identifier);
@@ -143,6 +175,12 @@ public final class ResearchPublicationJsonMerger {
         return normalize(institution);
     }
 
+    /**
+     * 取得第一个符合字段或节点约定的有效内容，没有匹配时返回空值。
+     * @param node 当前JSON、XML或队列节点
+     * @param names 来源或主题的显示名称映射
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String first(ObjectNode node, String... names) {
         for (String name : names) {
             JsonNode value = node.get(name);
@@ -152,26 +190,53 @@ public final class ResearchPublicationJsonMerger {
         return "";
     }
 
+    /**
+     * 判断字段是否属于作者署名机构，用于按机构规则合并而非普通文本覆盖。
+     * @param field 要读取或匹配的字段名
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean isAffiliationField(String field) {
         String normalized = field.toLowerCase(Locale.ROOT);
         return normalized.equals("affiliation") || normalized.equals("institution")
                 || normalized.equals("organization") || normalized.equals("affiliationname");
     }
 
+    /**
+     * 按当前对象的文本合并规则保留有效内容，避免空白输入覆盖已有字段。
+     * @param left 规范化或排序后的左端值
+     * @param right 规范化或排序后的右端值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String mergeText(String left, String right) {
         if (blank(left)) return right.trim();
         if (blank(right) || normalize(left).equals(normalize(right))) return left.trim();
         return left.trim() + "; " + right.trim();
     }
 
+    /**
+     * 整理当前业务字符串的空白、大小写或固定前缀，供后续匹配使用。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String normalize(String value) {
         return value == null ? "" : value.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 在两个候选文本中选择有效且更完整的一个，具体优先规则由当前合并方法限定。
+     * @param left 规范化或排序后的左端值
+     * @param right 规范化或排序后的右端值
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String longer(String left, String right) {
         return right == null || right.length() <= left.length() ? left : right;
     }
 
+    /**
+     * 判断文本是否为空或仅有空白，避免空数据覆盖原有有效内容。
+     * @param value 待校验、转换或合并的值
+     * @return true表示满足上述条件，false表示不满足
+     */
     private static boolean blank(String value) {
         return value == null || value.isBlank();
     }

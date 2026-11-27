@@ -17,9 +17,21 @@ import com.example.bioplatform.catalog.mapper.ToolMapper;
 @RequestMapping("/api/system")
 @RequiredArgsConstructor
 public class SystemController {
+    /**
+     * dataSource：系统数据源，用于连接状态或数据库访问。
+     */
     private final DataSource dataSource;
+    /**
+     * databases：数据库目录结果或数据库目录持久层。
+     */
     private final DatabaseMapper databases;
+    /**
+     * tools：在线工具结果或工具持久层。
+     */
     private final ToolMapper tools;
+    /**
+     * demoEnabled：是否启用本地演示数据模式。
+     */
     @Value("${app.demo-enabled:false}")
     private boolean demoEnabled;
 

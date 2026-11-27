@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.example.bioplatform.research.integration.mapper.ResearchResourceMapper">
+    <!-- 写入本方法指定的记录；涉及research_stat_publication表。唯一键冲突按SQL合并已有字段。 -->
     <insert id="upsert">
         INSERT INTO
         research_stat_publication(publication_key,record_kind,resource_accession,resource_url,title,pub_year,source_codes,source_record_keys,authors_json,affiliation_info,grants_json,cncb_banks_json,keyword_list,raw_payload,content_hash,has_primary_source,is_active)
@@ -14,6 +15,7 @@
         title=VALUES(title),resource_url=VALUES(resource_url),pub_year=VALUES(pub_year),authors_json=VALUES(authors_json),affiliation_info=VALUES(affiliation_info),grants_json=VALUES(grants_json),cncb_banks_json=VALUES(cncb_banks_json),keyword_list=VALUES(keyword_list),raw_payload=VALUES(raw_payload),
         content_hash=VALUES(content_hash)
     </insert>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="page" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,source_codes source_code,CONCAT('RESOURCE:',resource_accession)
         source_record_key,'RESOURCE' record_kind,resource_accession resource_accession,resource_url,is_active
@@ -23,14 +25,17 @@
         AND source_codes=#{code} AND id&gt;#{after} AND is_active=1 AND (has_primary_source=1 OR #{related}=TRUE) ORDER
         BY id LIMIT #{size}
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="count" resultType="long">
         SELECT COUNT(*) FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND
         is_active=1 AND (has_primary_source=1 OR #{related}=TRUE)
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="years" resultType="java.lang.Integer">
         SELECT DISTINCT pub_year FROM research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code}
         AND pub_year IS NOT NULL AND is_active=1 AND (has_primary_source=1 OR #{related}=TRUE)
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="keys" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
         SELECT id source_row_id,source_codes source_code,CONCAT('RESOURCE:',resource_accession)
         source_record_key,'RESOURCE' record_kind,resource_accession resource_accession,resource_url,is_active
@@ -40,15 +45,18 @@
         AND source_codes=#{code} AND resource_accession IN
         <foreach collection='ids' item='id' open='(' close=')' separator=','>#{id}</foreach>
     </select>
+    <!-- 更新本方法指定的记录；涉及research_stat_publication表。 -->
     <update id="retire">
         UPDATE research_stat_publication SET is_active=0,update_time=NOW() WHERE record_kind='RESOURCE' AND
         publication_key=CONCAT(#{code},':RESOURCE:',#{id}) AND is_active=1
     </update>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="pending" resultType="com.example.bioplatform.research.collection.common.dto.PendingRelationRoot">
         SELECT 'SOURCE_KEY' identifier_type,CONCAT('RESOURCE:',resource_accession) identifier_value FROM
         research_stat_publication WHERE record_kind='RESOURCE' AND source_codes=#{code} AND is_active=1 AND
         (relation_status='PENDING' OR (#{failed}=TRUE AND relation_status='FAILED')) ORDER BY id LIMIT #{size}
     </select>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="relationSource"
             resultType="com.example.bioplatform.research.collection.common.dto.RelationSourceRecord">
         SELECT 'SOURCE_KEY' identifier_type,CONCAT('RESOURCE:',resource_accession) identifier_value,NULL pmid,NULL
@@ -56,14 +64,17 @@
         research_stat_publication WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id})
         LIMIT 1
     </select>
+    <!-- 更新本方法指定的记录；涉及research_stat_publication表。 -->
     <update id="relationStatus">
         UPDATE research_stat_publication SET relation_status=#{status},relation_last_error=#{error},update_time=NOW()
         WHERE record_kind='RESOURCE' AND publication_key=CONCAT(#{code},':RESOURCE:',#{id})
     </update>
+    <!-- 更新本方法指定的记录；涉及research_stat_publication表。 -->
     <update id="grants">
         UPDATE research_stat_publication SET grants_json=#{grants},update_time=NOW() WHERE record_kind='RESOURCE' AND
         publication_key=CONCAT(#{code},':RESOURCE:',#{id})
     </update>
+    <!-- 查询本方法指定的记录；涉及research_stat_publication表。 -->
     <select id="changedPage" resultType="com.example.bioplatform.research.collection.common.dto.SourcePublicationRecord">
 
         SELECT update_time source_updated_time, id source_row_id,source_codes source_code,CONCAT('RESOURCE:',resource_accession)

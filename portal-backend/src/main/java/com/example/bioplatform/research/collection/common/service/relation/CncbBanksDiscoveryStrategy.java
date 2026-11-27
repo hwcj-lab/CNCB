@@ -16,11 +16,27 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class CncbBanksDiscoveryStrategy implements RelationDiscoveryStrategy {
+    /**
+     * resolvers：可供选择的资源或唯一值解析器实现集合。
+     */
     private final RelatedResourceResolverFactory resolvers;
+    /**
+     * pages：读取资源网页或接口正文的客户端。
+     */
     private final RelationPageClient pages;
+    /**
+     * json：JSON解析与序列化组件。
+     */
     private final ObjectMapper json;
+    /**
+     * PMID：匹配明确PubMed编号的正则表达式。
+     */
     private static final Pattern PMID = Pattern.compile("(?i)(?:pubmed(?:[.]ncbi[.]nlm[.]nih[.]gov)?[/=:? ]+|pmid[^0-9]{0,20})([1-9][0-9]{5,11})");
 
+    /**
+     * 返回当前发现策略的稳定编码，用于选择路径和记录发现来源。
+     * @return 按上述规则计算或读取的String结果
+     */
     public String code() {
         return "CNCB_BANKS";
     }
@@ -78,6 +94,11 @@ public class CncbBanksDiscoveryStrategy implements RelationDiscoveryStrategy {
         return new RelationDiscoveryResult(code(), discovered, List.copyOf(references.values()), grants);
     }
 
+    /**
+     * 解析cncbBanks中的有效官方链接及其数据库名称，供后续资源工厂选择解析器。
+     * @param value 待校验、转换或合并的值
+     * @return 按上述规则计算或读取的List<Link>结果
+     */
     private List<Link> links(String value) {
         if (value == null || value.isBlank()) return List.of();
         try {
@@ -93,11 +114,23 @@ public class CncbBanksDiscoveryStrategy implements RelationDiscoveryStrategy {
         }
     }
 
+    /**
+     * 读取指定节点中的文本字段，按本类空值约定返回结果。
+     * @param node 当前JSON、XML或队列节点
+     * @param field 要读取或匹配的字段名
+     * @return 按上述规则计算或读取的String结果
+     */
     private static String text(JsonNode node, String field) {
         var value = node.get(field);
         return value == null || value.isNull() ? null : value.asText();
     }
 
+    /**
+     * cncbBanks条目的数据库名称、资源编号与官方地址。
+     * @param databaseName cncbBanks提供的数据库名称，用于匹配资源解析器
+     * @param accession 资源在原始数据库中的登录号
+     * @param url 当前请求或资源的访问地址
+     */
     private record Link(String databaseName, String accession, String url) {
     }
 }
